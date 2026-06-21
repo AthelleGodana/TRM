@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DRIVER
+  STUDENT
+}
+
+enum Tier {
+  TOWN
+  LAVINGTON
+  ADAMS
+}
+
+enum TripStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student   Student?
+  driver    Driver?
+  auditLogs AuditLog[]
+}
+
+model Student {
+  id            String      @id @default(uuid())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String      @unique
+  paymentTier   Tier        @default(TOWN)
+  pickupPoint   PickupPoint? @relation(fields: [pickupPointId], references: [id])
+  pickupPointId String?
+  bus           Bus?        @relation(fields: [busId], references: [id])
+  busId         String?
+  payments      Payment[]
+}
+
+model Driver {
+  id     String @id @default(uuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  bus    Bus?   @relation(fields: [busId], references: [id])
+  busId  String? @unique
+}
+
+model Bus {
+  id          String   @id @default(uuid())
+  plateNumber String   @unique
+  capacity    Int
+  currentLat  Float?
+  currentLng  Float?
+  route       Route?   @relation(fields: [routeId], references: [id])
+  routeId     String?
+  driver      Driver?
+  students    Student[]
+  trips       Trip[]
+}
+
+model Route {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  description  String?
+  buses        Bus[]
+  pickupPoints PickupPoint[]
+  trips        Trip[]
+}
+
+model PickupPoint {
+  id          String    @id @default(uuid())
+  name        String
+  locationLat Float
+  locationLng Float
+  tier        Tier      @default(TOWN)
+  route       Route     @relation(fields: [routeId], references: [id])
+  routeId     String
+  students    Student[]
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  student       Student  @relation(fields: [studentId], references: [id])
+  studentId     String
+  amount        Float
+  status        String   // e.g., PENDING, COMPLETED, FAILED
+  mpesaReceipt  String?  @unique
+  tierPurchased Tier
+  createdAt     DateTime @default(now())
+}
+
+model Trip {
+  id        String     @id @default(uuid())
+  bus       Bus        @relation(fields: [busId], references: [id])
+  busId     String
+  route     Route      @relation(fields: [routeId], references: [id])
+  routeId   String
+  status    TripStatus @default(PLANNED)
+  startTime DateTime?
+  endTime   DateTime?
+  createdAt DateTime   @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  admin      User     @relation(fields: [adminId], references: [id])
+  adminId    String
+  action     String
+  targetType String
+  targetId   String?
+  timestamp  DateTime @default(now())
+}
