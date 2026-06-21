@@ -1,4 +1,11 @@
 import prisma from '../config/prisma.js';
+import { createAuditLog } from '../utils/auditLogger.js';
+
+// Helper to validate tier access
+const TIER_ORDER = ['TOWN', 'LAVINGTON', 'ADAMS'];
+const canAccess = (studentTier, pointTier) => {
+  return TIER_ORDER.indexOf(studentTier) >= TIER_ORDER.indexOf(pointTier);
+};
 
 // STUDENT CONTROLLERS
 export const getStudentProfile = async (req, res) => {
@@ -57,6 +64,9 @@ export const createRoute = async (req, res) => {
     const route = await prisma.route.create({
       data: { name, description }
     });
+
+    await createAuditLog(req.user.id, 'CREATE_ROUTE', 'Route', route.id);
+
     res.status(201).json(route);
   } catch (error) {
     res.status(500).json({ message: error.message });

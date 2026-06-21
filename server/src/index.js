@@ -31,13 +31,26 @@ io.on('connection', (socket) => {
 
   // Driver broadcasting location
   socket.on('updateLocation', async (data) => {
-    const { busId, lat, lng } = data;
+    const { busId, lat, lng, userId } = data;
 
-    // Broadcast to all students in the room
-    io.to(`bus_${busId}`).emit('locationUpdate', { lat, lng });
+    if (!userId) return;
 
-    // Update DB periodically or on important changes (throttling should be on client)
     try {
+      // Authorization check: Verify user is a driver and is assigned to this bus
+      const driver = await prisma.driver.findUnique({
+        where: { userId },
+        select: { busId: true }
+      });
+
+      if (!driver || driver.busId !== busId) {
+        console.error(`Unauthorized location update attempt from user ${userId} for bus ${busId}`);
+        return;
+      }
+
+      // Broadcast to all students in the room
+      io.to(`bus_${busId}`).emit('locationUpdate', { lat, lng });
+
+      // Update DB
       await prisma.bus.update({
         where: { id: busId },
         data: { currentLat: lat, currentLng: lng }
