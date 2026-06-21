@@ -51,6 +51,8 @@ model Student {
   bus           Bus?        @relation(fields: [busId], references: [id])
   busId         String?
   payments      Payment[]
+  preferredTimeslot Timeslot? @relation(fields: [timeslotId], references: [id])
+  timeslotId     String?
 }
 
 model Driver {
@@ -92,6 +94,16 @@ model PickupPoint {
   route       Route     @relation(fields: [routeId], references: [id])
   routeId     String
   students    Student[]
+  timeslots   Timeslot[]
+}
+
+model Timeslot {
+  id            String      @id @default(uuid())
+  pickupTime    String      // e.g., "07:00 AM"
+  dropoffTime   String      // e.g., "05:00 PM"
+  pickupPoint   PickupPoint @relation(fields: [pickupPointId], references: [id])
+  pickupPointId String
+  students      Student[]
 }
 
 model Payment {

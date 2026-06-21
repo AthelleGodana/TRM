@@ -76,9 +76,59 @@ export const createRoute = async (req, res) => {
 export const getPickupPoints = async (req, res) => {
   try {
     const points = await prisma.pickupPoint.findMany({
-      include: { route: true }
+      include: { route: true, timeslots: true }
     });
     res.json(points);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateStudentSchedule = async (req, res) => {
+  try {
+    const { timeslotId } = req.body;
+
+    const [student, timeslot] = await Promise.all([
+      prisma.student.findUnique({ where: { userId: req.user.id } }),
+      prisma.timeslot.findUnique({
+        where: { id: timeslotId },
+        include: { pickupPoint: true }
+      })
+    ]);
+
+    if (!student || !timeslot) {
+      return res.status(404).json({ message: 'Student or Timeslot not found' });
+    }
+
+    // Business Rule: Tier Enforcement
+    if (!canAccess(student.paymentTier, timeslot.pickupPoint.tier)) {
+      return res.status(403).json({
+        message: `Your current tier (${student.paymentTier}) does not grant access to ${timeslot.pickupPoint.name} (${timeslot.pickupPoint.tier} tier).`
+      });
+    }
+
+    const updatedStudent = await prisma.student.update({
+      where: { userId: req.user.id },
+      data: {
+        timeslotId,
+        pickupPointId: timeslot.pickupPointId // Sync pickup point with selected timeslot
+      }
+    });
+    res.json(updatedStudent);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getCapacityPlanning = async (req, res) => {
+  try {
+    const report = await prisma.timeslot.findMany({
+      include: {
+        pickupPoint: { include: { route: true } },
+        students: { select: { id: true } }
+      }
+    });
+    res.json(report);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
