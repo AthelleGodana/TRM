@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { scroll-behavior: smooth; }
+
+body {
+  @apply bg-gray-50 text-gray-900 dark:bg-surface-dark dark:text-gray-100 transition-colors duration-300;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* ── Glassmorphism primitives ─────────────────────────────────────────── */
+@layer components {
+  .glass {
+    @apply bg-white/70 dark:bg-white/5 backdrop-blur-lg border border-white/40 dark:border-white/10 shadow-glass dark:shadow-glass-dark;
+  }
+  .glass-card {
+    @apply glass rounded-2xl;
+  }
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-600 to-accent-violet text-white font-medium rounded-xl px-4 py-2.5
+           shadow-glow hover:shadow-lg hover:brightness-110 active:scale-[0.98] transition-all duration-200
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-secondary {
+    @apply glass rounded-xl px-4 py-2.5 font-medium text-gray-700 dark:text-gray-200
+           hover:bg-white/90 dark:hover:bg-white/10 active:scale-[0.98] transition-all duration-200;
+  }
+  .btn-danger {
+    @apply bg-gradient-to-r from-rose-600 to-rose-500 text-white font-medium rounded-xl px-4 py-2.5
+           hover:brightness-110 active:scale-[0.98] transition-all duration-200 disabled:opacity-50;
+  }
+  .input-field {
+    @apply w-full bg-white/60 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm
+           placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500
+           transition-all duration-150;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+  .badge-success { @apply badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400; }
+  .badge-warning { @apply badge bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400; }
+  .badge-danger  { @apply badge bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400; }
+  .badge-info    { @apply badge bg-primary-100 text-primary-700 dark:bg-primary-500/15 dark:text-primary-400; }
+  .badge-neutral { @apply badge bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300; }
+}
+
+/* ── Skeleton loading shimmer ─────────────────────────────────────────── */
+.skeleton {
+  @apply relative overflow-hidden bg-gray-200/70 dark:bg-white/10 rounded-lg;
+  background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+  background-size: 1000px 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+.dark .skeleton { background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
+
+/* ── Map ──────────────────────────────────────────────────────────────── */
+.map-container {
+  height: 420px;
+  width: 100%;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+/* Animated 🚌 emoji marker for live bus tracking */
+.transtrack-bus-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.bus-emoji-marker {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+  animation: bus-bounce 1.6s ease-in-out infinite;
+}
+@keyframes bus-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+}
+.bus-marker-icon { filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-gray-300 dark:bg-white/15 rounded-full; }
+
+/* ── iOS pull-to-refresh tint (standalone PWA) ───────────────────────── */
+@media (display-mode: standalone) {
+  body { overscroll-behavior-y: contain; }
+}

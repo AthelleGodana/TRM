@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  student
+  driver
+  admin
+}
+
+enum Tier {
+  TOWN
+  LAVINGTON
+  ADAMS
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum PaymentMethod {
+  MPESA
+  CARD
+  BANK_TRANSFER
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role
+  createdAt DateTime @default(now())
+
+  student Student?
+  driver  Driver?
+}
+
+model Student {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address       String?
+  phone         String?
+  email         String?
+  paymentTier   Tier     @default(TOWN)
+
+  arrivePickupPointId Int?
+  arrivePickupPoint   PickupPoint? @relation("ArrivePickup", fields: [arrivePickupPointId], references: [id])
+
+  departPickupPointId Int?
+  departPickupPoint   PickupPoint? @relation("DepartPickup", fields: [departPickupPointId], references: [id])
+
+routeId Int?
+  route   Route? @relation(fields: [routeId], references: [id])
+
+  payments Payment[]
+  roster   TripRoster[]
+
+  createdAt DateTime @default(now())
+}
+
+model Driver {
+  id     Int    @id @default(autoincrement())
+  userId Int    @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  buses Bus[]
+
+  createdAt DateTime @default(now())
+}
+
+model Route {
+  id              Int      @id @default(autoincrement())
+  name            String
+  schoolArrival   String?
+  schoolDeparture String?
+  isActive        Boolean  @default(true)
+
+pickupPoints PickupPoint[]
+  buses        Bus[]
+  students     Student[]
+  slots        PickupSlot[]
+
+  createdAt DateTime @default(now())
+}
+
+model PickupPoint {
+  id      Int    @id @default(autoincrement())
+  routeId Int
+  route   Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  name    String
+  tier    Tier
+  lat     Float?
+  lng     Float?
+  order   Int    @default(0)
+
+  studentsArriving Student[] @relation("ArrivePickup")
+  studentsLeaving  Student[] @relation("DepartPickup")
+
+  createdAt DateTime @default(now())
+}
+
+enum BusStatus {
+  OPERATIONAL
+  IN_SERVICE
+  OUT_OF_FUEL
+}
+
+model Bus {
+  id            Int       @id @default(autoincrement())
+  licensePlate  String    @unique
+  capacity      Int       @default(30)
+  driverId      Int?
+  driver        Driver?   @relation(fields: [driverId], references: [id])
+  routeId       Int?
+  route         Route?    @relation(fields: [routeId], references: [id])
+  status        BusStatus @default(OPERATIONAL)
+
+  gpsLogs      GpsLog[]
+  vehicleLogs  VehicleLog[]
+  tripRosters  TripRoster[]
+  slots        PickupSlot[]
+
+  createdAt DateTime @default(now())
+}
+
+model PickupSlot {
+  id          Int      @id @default(autoincrement())
+  routeId     Int
+  route       Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  busId       Int?
+  bus         Bus?     @relation(fields: [busId], references: [id])
+  time        String   // e.g. "06:30"
+  label       String   // e.g. "Morning 1"
+  capacity    Int      @default(30)
+  bookedCount Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  bookings TripRoster[]
+
+  createdAt DateTime @default(now())
+}
+
+enum BoardingStatus {
+  PENDING
+  BOARDED
+  NO_SHOW
+}
+
+model TripRoster {
+  id        Int            @id @default(autoincrement())
+  busId      Int
+  bus        Bus            @relation(fields: [busId], references: [id], onDelete: Cascade)
+  slotId     Int?
+  slot       PickupSlot?    @relation(fields: [slotId], references: [id])
+  studentId  Int?
+  student    Student?       @relation(fields: [studentId], references: [id])
+  status     BoardingStatus @default(PENDING)
+  tripDate   DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+}
+
+model VehicleLog {
+  id          Int      @id @default(autoincrement())
+  busId       Int
+  bus         Bus      @relation(fields: [busId], references: [id], onDelete: Cascade)
+  type        String   // FUEL | MAINTENANCE | SAFETY_CHECK
+  fuelLiters  Float?
+  fuelCost    Decimal? @db.Decimal(10, 2)
+  odometer    Int?
+  notes       String?
+  passed      Boolean? // for SAFETY_CHECK items
+  createdAt   DateTime @default(now())
+}
+
+model GpsLog {
+  id         Int      @id @default(autoincrement())
+  busId      Int
+  bus        Bus      @relation(fields: [busId], references: [id], onDelete: Cascade)
+  lat        Float
+  lng        Float
+  recordedAt DateTime @default(now())
+
+  @@index([busId, recordedAt])
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  studentId     Int
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  routeId       Int?
+  amount        Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod @default(MPESA)
+  status        PaymentStatus @default(PENDING)
+  mpesaReceipt  String?
+  checkoutRequestId String?
+  createdAt     DateTime      @default(now())
+}
+
