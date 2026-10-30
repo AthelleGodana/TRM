@@ -14,6 +14,8 @@ export default function Navbar({ title, onInstall }) {
     navigate('/login');
   };
 
+
+  
   // Determine the role home path for the back button fallback.
   const homePath = user ? `/${user.role}` : '/';
 

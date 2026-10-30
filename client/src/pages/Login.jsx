@@ -7,8 +7,8 @@ import ThemeToggle from '../components/common/ThemeToggle';
 import ButtonSelect from '../components/common/ButtonSelect';
 
 const ROLE_HINTS = {
-  student: 'student1',
-  driver: 'driver1',
+  student: 'student',
+  driver: 'driver',
   admin: 'admin',
 };
 
