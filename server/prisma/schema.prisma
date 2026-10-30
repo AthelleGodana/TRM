@@ -7,10 +7,146 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Legacy single-tenant role. Replaced by Membership.role; kept only until
+// existing users have been migrated.
 enum Role {
   student
   driver
   admin
+}
+
+enum OrgProfile {
+  UNIVERSITY
+  SCHOOL
+  COMPANY
+}
+
+enum OrgStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+// Roles a user can hold inside an organisation. Which ones are allowed
+// depends on the organisation's profile (see src/config/roles.js).
+// SUPER_ADMIN is platform-level and lives on User.isSuperAdmin instead.
+enum MemberRole {
+  ORG_ADMIN
+  FLEET_MANAGER
+  DRIVER
+  STUDENT
+  PARENT
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ── Tenancy ────────────────────────────────────────────────────────────
+
+model Organization {
+  id                     Int        @id @default(autoincrement())
+  name                   String
+  slug                   String     @unique
+  profile                OrgProfile
+  status                 OrgStatus  @default(PENDING)
+  branding               Json       @default("{}")
+  fuelHubEnabled         Boolean    @default(false)
+  aiFuelAnalyticsEnabled Boolean    @default(false)
+  approvedAt             DateTime?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+
+  memberships    Membership[]
+  invitations    Invitation[]
+  accessRequests AccessRequest[]
+  students       Student[]
+  drivers        Driver[]
+  routes         Route[]
+  pickupPoints   PickupPoint[]
+  buses          Bus[]
+  slots          PickupSlot[]
+  tripRosters    TripRoster[]
+  vehicleLogs    VehicleLog[]
+  gpsLogs        GpsLog[]
+  payments       Payment[]
+}
+
+model Membership {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           MemberRole
+  lastUsedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+}
+
+model Invitation {
+  id             Int              @id @default(autoincrement())
+  organizationId Int
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           MemberRole
+  status         InvitationStatus @default(PENDING)
+  invitedById    Int?
+  invitedBy      User?            @relation("InvitationsSent", fields: [invitedById], references: [id], onDelete: SetNull)
+  acceptedById   Int?
+  acceptedBy     User?            @relation("InvitationsAccepted", fields: [acceptedById], references: [id], onDelete: SetNull)
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([organizationId, status])
+  @@index([email, status])
+}
+
+model AccessRequest {
+  id             Int                 @id @default(autoincrement())
+  organizationId Int
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User                @relation("AccessRequests", fields: [userId], references: [id], onDelete: Cascade)
+  message        String?
+  status         AccessRequestStatus @default(PENDING)
+  reviewedById   Int?
+  reviewedBy     User?               @relation("AccessRequestsReviewed", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt     DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status])
+}
+
+// Rotating refresh tokens. Only a SHA-256 hash of the cookie value is
+// stored. Tokens issued from one sign-in share a familyId so that reuse of
+// an already-rotated token can revoke the whole family.
+model RefreshToken {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash      String    @unique
+  familyId       String
+  organizationId Int?
+  expiresAt      DateTime
+  rotatedAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([familyId])
+  @@index([userId])
 }
 
 enum Tier {
@@ -31,27 +167,45 @@ enum PaymentMethod {
   BANK_TRANSFER
 }
 
+// Global identity. Users sign in with Google and are identified by the
+// Google "sub" claim; organisation access comes from Membership rows.
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      Role
-  createdAt DateTime @default(now())
+  id           Int       @id @default(autoincrement())
+  googleSub    String?   @unique
+  email        String?   @unique
+  name         String?
+  picture      String?
+  isSuperAdmin Boolean   @default(false)
+  lastLoginAt  DateTime?
+  // Legacy password-login columns, kept until existing users have migrated.
+  username     String?   @unique
+  password     String?
+  role         Role?
+  firstName    String
+  lastName     String
+  createdAt    DateTime  @default(now())
 
   student Student?
   driver  Driver?
+
+  memberships            Membership[]
+  refreshTokens          RefreshToken[]
+  invitationsSent        Invitation[]    @relation("InvitationsSent")
+  invitationsAccepted    Invitation[]    @relation("InvitationsAccepted")
+  accessRequests         AccessRequest[] @relation("AccessRequests")
+  accessRequestsReviewed AccessRequest[] @relation("AccessRequestsReviewed")
 }
 
 model Student {
-  id            Int      @id @default(autoincrement())
-  userId        Int      @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  address       String?
-  phone         String?
-  email         String?
-  paymentTier   Tier     @default(TOWN)
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         Int           @unique
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address        String?
+  phone          String?
+  email          String?
+  paymentTier    Tier          @default(TOWN)
 
   arrivePickupPointId Int?
   arrivePickupPoint   PickupPoint? @relation("ArrivePickup", fields: [arrivePickupPointId], references: [id])
@@ -59,7 +213,7 @@ model Student {
   departPickupPointId Int?
   departPickupPoint   PickupPoint? @relation("DepartPickup", fields: [departPickupPointId], references: [id])
 
-routeId Int?
+  routeId Int?
   route   Route? @relation(fields: [routeId], references: [id])
 
   payments Payment[]
@@ -69,9 +223,11 @@ routeId Int?
 }
 
 model Driver {
-  id     Int    @id @default(autoincrement())
-  userId Int    @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         Int           @unique
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   buses Bus[]
 
@@ -79,13 +235,15 @@ model Driver {
 }
 
 model Route {
-  id              Int      @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
+  organizationId  Int?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name            String
   schoolArrival   String?
   schoolDeparture String?
-  isActive        Boolean  @default(true)
+  isActive        Boolean       @default(true)
 
-pickupPoints PickupPoint[]
+  pickupPoints PickupPoint[]
   buses        Bus[]
   students     Student[]
   slots        PickupSlot[]
@@ -94,14 +252,16 @@ pickupPoints PickupPoint[]
 }
 
 model PickupPoint {
-  id      Int    @id @default(autoincrement())
-  routeId Int
-  route   Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  name    String
-  tier    Tier
-  lat     Float?
-  lng     Float?
-  order   Int    @default(0)
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  routeId        Int
+  route          Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  name           String
+  tier           Tier
+  lat            Float?
+  lng            Float?
+  order          Int           @default(0)
 
   studentsArriving Student[] @relation("ArrivePickup")
   studentsLeaving  Student[] @relation("DepartPickup")
@@ -116,34 +276,38 @@ enum BusStatus {
 }
 
 model Bus {
-  id            Int       @id @default(autoincrement())
-  licensePlate  String    @unique
-  capacity      Int       @default(30)
-  driverId      Int?
-  driver        Driver?   @relation(fields: [driverId], references: [id])
-  routeId       Int?
-  route         Route?    @relation(fields: [routeId], references: [id])
-  status        BusStatus @default(OPERATIONAL)
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  licensePlate   String        @unique
+  capacity       Int           @default(30)
+  driverId       Int?
+  driver         Driver?       @relation(fields: [driverId], references: [id])
+  routeId        Int?
+  route          Route?        @relation(fields: [routeId], references: [id])
+  status         BusStatus     @default(OPERATIONAL)
 
-  gpsLogs      GpsLog[]
-  vehicleLogs  VehicleLog[]
-  tripRosters  TripRoster[]
-  slots        PickupSlot[]
+  gpsLogs     GpsLog[]
+  vehicleLogs VehicleLog[]
+  tripRosters TripRoster[]
+  slots       PickupSlot[]
 
   createdAt DateTime @default(now())
 }
 
 model PickupSlot {
-  id          Int      @id @default(autoincrement())
-  routeId     Int
-  route       Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  busId       Int?
-  bus         Bus?     @relation(fields: [busId], references: [id])
-  time        String   // e.g. "06:30"
-  label       String   // e.g. "Morning 1"
-  capacity    Int      @default(30)
-  bookedCount Int      @default(0)
-  isActive    Boolean  @default(true)
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  routeId        Int
+  route          Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  busId          Int?
+  bus            Bus?          @relation(fields: [busId], references: [id])
+  time           String // e.g. "06:30"
+  label          String // e.g. "Morning 1"
+  capacity       Int           @default(30)
+  bookedCount    Int           @default(0)
+  isActive       Boolean       @default(true)
 
   bookings TripRoster[]
 
@@ -157,52 +321,59 @@ enum BoardingStatus {
 }
 
 model TripRoster {
-  id        Int            @id @default(autoincrement())
-  busId      Int
-  bus        Bus            @relation(fields: [busId], references: [id], onDelete: Cascade)
-  slotId     Int?
-  slot       PickupSlot?    @relation(fields: [slotId], references: [id])
-  studentId  Int?
-  student    Student?       @relation(fields: [studentId], references: [id])
-  status     BoardingStatus @default(PENDING)
-  tripDate   DateTime       @default(now())
-  createdAt  DateTime       @default(now())
+  id             Int            @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId          Int
+  bus            Bus            @relation(fields: [busId], references: [id], onDelete: Cascade)
+  slotId         Int?
+  slot           PickupSlot?    @relation(fields: [slotId], references: [id])
+  studentId      Int?
+  student        Student?       @relation(fields: [studentId], references: [id])
+  status         BoardingStatus @default(PENDING)
+  tripDate       DateTime       @default(now())
+  createdAt      DateTime       @default(now())
 }
 
 model VehicleLog {
-  id          Int      @id @default(autoincrement())
-  busId       Int
-  bus         Bus      @relation(fields: [busId], references: [id], onDelete: Cascade)
-  type        String   // FUEL | MAINTENANCE | SAFETY_CHECK
-  fuelLiters  Float?
-  fuelCost    Decimal? @db.Decimal(10, 2)
-  odometer    Int?
-  notes       String?
-  passed      Boolean? // for SAFETY_CHECK items
-  createdAt   DateTime @default(now())
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId          Int
+  bus            Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
+  type           String // FUEL | MAINTENANCE | SAFETY_CHECK
+  fuelLiters     Float?
+  fuelCost       Decimal?      @db.Decimal(10, 2)
+  odometer       Int?
+  notes          String?
+  passed         Boolean? // for SAFETY_CHECK items
+  createdAt      DateTime      @default(now())
 }
 
 model GpsLog {
-  id         Int      @id @default(autoincrement())
-  busId      Int
-  bus        Bus      @relation(fields: [busId], references: [id], onDelete: Cascade)
-  lat        Float
-  lng        Float
-  recordedAt DateTime @default(now())
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId          Int
+  bus            Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
+  lat            Float
+  lng            Float
+  recordedAt     DateTime      @default(now())
 
   @@index([busId, recordedAt])
 }
 
 model Payment {
-  id            Int           @id @default(autoincrement())
-  studentId     Int
-  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  routeId       Int?
-  amount        Decimal       @db.Decimal(10, 2)
-  method        PaymentMethod @default(MPESA)
-  status        PaymentStatus @default(PENDING)
-  mpesaReceipt  String?
+  id                Int           @id @default(autoincrement())
+  organizationId    Int?
+  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  studentId         Int
+  student           Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  routeId           Int?
+  amount            Decimal       @db.Decimal(10, 2)
+  method            PaymentMethod @default(MPESA)
+  status            PaymentStatus @default(PENDING)
+  mpesaReceipt      String?
   checkoutRequestId String?
-  createdAt     DateTime      @default(now())
+  createdAt         DateTime      @default(now())
 }
-
