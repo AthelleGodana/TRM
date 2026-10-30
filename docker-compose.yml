@@ -14,5 +14,20 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # Throwaway database for the server test suite. Data lives in tmpfs and is
+  # discarded when the container stops. Start with:
+  #   docker compose --profile test up -d postgres-test
+  postgres-test:
+    image: postgres:15-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test_only_password
+      POSTGRES_DB: transtrack_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+
 volumes:
   postgres_data:
