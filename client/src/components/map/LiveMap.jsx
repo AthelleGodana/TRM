@@ -1,174 +1,90 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { BusFront, Clock, LocateFixed, MapPin, Siren, X } from 'lucide-react';
+import { Clock, LocateFixed, Siren } from 'lucide-react';
+import { busIcon, DEFAULT_CENTER, stopIcon } from './mapIcons';
 
-// ── Bus marker: Lucide "bus-front" as static SVG in a blue disc ────────
-const BUS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" '
-  + 'stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<path d="M4 6 2 7"/><path d="M10 6h4"/><path d="m22 7-2-1"/><rect width="16" height="16" x="4" y="3" rx="2"/>'
-  + '<path d="M4 11h16"/><path d="M8 15h.01"/><path d="M16 15h.01"/><path d="M6 19v2"/><path d="M18 21v-2"/></svg>';
-const busIcon = L.divIcon({
-  className: 'transtrack-bus-icon',
-  html: `<div class="bus-marker">${BUS_SVG}</div>`,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -20],
-});
+const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-// ── Smooth GPS interpolation between incoming positions ────────────────
-function useInterpolatedPosition(position) {
+// Glides the marker between updates (skipped under reduced motion).
+function useGlide(position) {
   const [display, setDisplay] = useState(position);
-  const animRef = useRef(null);
-
+  const fromRef = useRef(position);
   useEffect(() => {
-    if (!position) return;
-    // Fresh position: animate from current display to the target.
-    const from = display;
-    const to = position;
+    if (!position) { setDisplay(null); return undefined; }
+    const from = fromRef.current;
+    if (!from || prefersReducedMotion()) {
+      fromRef.current = position;
+      setDisplay(position);
+      return undefined;
+    }
     const start = performance.now();
-    const duration = 500; // ms of smooth easing
-
+    let frame;
     const step = (now) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
-      setDisplay({
-        lat: from.lat + (to.lat - from.lat) * eased,
-        lng: from.lng + (to.lng - from.lng) * eased,
-      });
-      if (t < 1) animRef.current = requestAnimationFrame(step);
+      const t = Math.min(1, (now - start) / 800);
+      const e = 1 - (1 - t) ** 3;
+      const next = { lat: from.lat + (position.lat - from.lat) * e, lng: from.lng + (position.lng - from.lng) * e };
+      fromRef.current = next;
+      setDisplay(next);
+      if (t < 1) frame = requestAnimationFrame(step);
     };
-
-    cancelAnimationFrame(animRef.current);
-    animRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(animRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [position]);
-
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [position?.lat, position?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
   return display;
 }
 
-// ── Center-on-bus helper (uses the map context) ────────────────────────
-function CenterControl({ target, onCenter }) {
+// Keeps the bus in view: jumps to it on the first position, then pans
+// with it until the user drags the map.
+function FollowBus({ target, following, onUserMove, fitTo }) {
   const map = useMap();
+  const seen = useRef(false);
+
   useEffect(() => {
-    if (onCenter) onCenter(() => {
-      if (target) map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
-    });
-  }, [target, map, onCenter]);
+    const stop = () => onUserMove();
+    map.on('dragstart', stop);
+    return () => { map.off('dragstart', stop); };
+  }, [map, onUserMove]);
+
+  useEffect(() => {
+    if (!target) {
+      if (!seen.current && fitTo.length > 1) map.fitBounds(fitTo, { padding: [40, 40] });
+      return;
+    }
+    if (!seen.current) {
+      seen.current = true;
+      map.setView([target.lat, target.lng], Math.max(map.getZoom(), 15), { animate: false });
+    } else if (following) {
+      map.panTo([target.lat, target.lng], { animate: !prefersReducedMotion() });
+    }
+  }, [target?.lat, target?.lng, following]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
-// ── Small helper to derive status + ETA text ───────────────────────────
-function deriveStatus(position) {
-  if (!position) return { label: 'No signal', tone: 'neutral' };
-  return { label: 'En Route', tone: 'success' };
-}
-
+// Live map of one bus with its route and stops.
+// position: { lat, lng, ... } | null; status: 'moving' | 'stopped' | 'offline'
 export default function LiveMap({
   position = null,
+  status = 'moving',
   label = 'Bus',
-  pickupPoints = [],
-  driverName = '—',
-  routePolyline = [],
+  stops = [],
+  myStopId = null,
   emergency = null,
   delay = null,
-  onBusClick = null,
 }) {
-  const [simulate, setSimulate] = useState(false);
-  const [simPos, setSimPos] = useState(null);
-  const [centerBus, setCenterBus] = useState(null);
-  const [speed, setSpeed] = useState(0);
-  const [selected, setSelected] = useState(false);
-  useEffect(() => {
-    if (!selected) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setSelected(false); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [selected]);
-  const lastPosRef = useRef(null);
-  const lastTimeRef = useRef(null);
-
-  // Simulation mode: move the bus along the route polyline (or a small circle).
-  useEffect(() => {
-    if (!simulate) { setSimPos(null); return; }
-    const pts = routePolyline.length
-      ? routePolyline
-      : [[-1.2921, 36.8219], [-1.285, 36.83], [-1.278, 36.838], [-1.285, 36.83], [-1.2921, 36.8219]];
-    let idx = 0;
-    setSimPos({ lat: pts[0][0], lng: pts[0][1] });
-    const iv = setInterval(() => {
-      idx = (idx + 1) % pts.length;
-      setSimPos({ lat: pts[idx][0], lng: pts[idx][1] });
-    }, 1200);
-    return () => clearInterval(iv);
-  }, [simulate, routePolyline]);
-
-  const rawPos = simulate ? simPos : position;
-  const displayPos = useInterpolatedPosition(rawPos);
-
-  // Speed estimation from successive positions.
-  useEffect(() => {
-    if (!rawPos) return;
-    const now = Date.now();
-    if (lastPosRef.current && lastTimeRef.current) {
-      const d = L.latLng(lastPosRef.current).distanceTo(L.latLng(rawPos));
-      const dt = (now - lastTimeRef.current) / 1000; // seconds
-      if (dt > 0) {
-        const kmh = Math.round((d / 1000) / (dt / 3600));
-        setSpeed(kmh);
-      }
-    }
-    lastPosRef.current = rawPos;
-    lastTimeRef.current = now;
-  }, [rawPos]);
-
-  const status = deriveStatus(rawPos);
-  const defaultCenter = useMemo(() => (position ? [position.lat, position.lng] : [-1.2921, 36.8219]), [position]);
-
-  // Build the polyline for the route if pickupPoints have coords.
-  const polyline = useMemo(() => {
-    if (routePolyline.length) return routePolyline;
-    const pts = pickupPoints
-      .filter((p) => p.lat != null && p.lng != null)
-      .map((p) => [p.lat, p.lng]);
-    return pts;
-  }, [pickupPoints, routePolyline]);
+  const [following, setFollowing] = useState(true);
+  const stopFollowing = useCallback(() => setFollowing(false), []);
+  const display = useGlide(position);
+  const mapped = useMemo(() => stops.filter((s) => s.lat != null && s.lng != null), [stops]);
+  const line = useMemo(() => mapped.map((s) => [s.lat, s.lng]), [mapped]);
+  const center = position ? [position.lat, position.lng] : line[0] || DEFAULT_CENTER;
 
   return (
-    <div className="relative w-full h-[520px] sm:h-[560px] rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-      {/* Simulation toggle */}
-      <div className="absolute top-4 right-4 z-[400]">
-        <button
-          onClick={() => setSimulate((s) => !s)}
-          className={`min-h-[48px] px-4 rounded-xl font-medium text-sm shadow border transition-colors ${
-            simulate
-              ? 'bg-indigo-600 text-white border-indigo-700'
-              : 'bg-white/90 text-slate-700 border-slate-200'
-          }`}
-        >
-          {simulate ? 'Live Mode' : 'Simulate'}
-        </button>
-      </div>
-
-{/* Center-on-bus button */}
-      {rawPos && (
-        <button
-          onClick={() => centerBus && centerBus()}
-          aria-label="Center on bus"
-          className="absolute bottom-4 right-4 z-[400] min-w-12 min-h-12 flex items-center justify-center rounded-lg bg-card shadow-md border border-border text-link hover:bg-muted"
-        >
-          <LocateFixed size={22} />
-        </button>
-      )}
-
-      {/* Emergency / delay banner */}
+    <div className="relative w-full h-[420px] sm:h-[520px] rounded-xl overflow-hidden border border-border">
       {(emergency || delay) && (
-        <div className="absolute top-4 left-4 right-16 z-[400] pointer-events-none">
+        <div className="absolute top-3 left-3 right-3 z-[400] flex flex-col gap-2 pointer-events-none">
           {emergency && (
-            <div role="alert" className="mb-2 rounded-lg bg-red-600 text-white px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold">
+            <div role="alert" className="rounded-lg bg-red-600 text-white px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold">
               <Siren size={18} aria-hidden="true" /> {emergency}
             </div>
           )}
@@ -180,151 +96,36 @@ export default function LiveMap({
         </div>
       )}
 
-      {/* Click-on-bus detail modal */}
-      {selected && (
-        <div className="absolute inset-0 z-[500] flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/50" onClick={() => setSelected(false)} aria-hidden="true" />
-          <motion.div
-            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
-            role="dialog" aria-modal="true" aria-label={`Bus ${label}`}
-            className="relative glass-card w-full max-w-sm p-5 shadow-xl"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-lg bg-primary-600 text-white flex items-center justify-center" aria-hidden="true"><BusFront size={22} /></div>
-                <div>
-                  <p className="font-bold text-gray-800 dark:text-gray-100">{label}</p>
-                  <p className="text-xs text-gray-400">License plate</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setSelected(false)} className="icon-btn -mr-2" aria-label="Close" autoFocus><X size={20} aria-hidden="true" /></button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg bg-muted p-3">
-                <p className="text-xs text-muted-foreground">Driver</p>
-                <p className="font-medium text-gray-800 dark:text-gray-100 truncate">{driverName}</p>
-              </div>
-              <div className="rounded-lg bg-muted p-3">
-                <p className="text-xs text-muted-foreground">Speed</p>
-                <p className="font-medium text-gray-800 dark:text-gray-100">{speed} km/h</p>
-              </div>
-              <div className="rounded-lg bg-muted p-3">
-                <p className="text-xs text-muted-foreground">ETA</p>
-                <p className="font-medium text-gray-800 dark:text-gray-100">~{rawPos ? Math.max(5, Math.round(speed ? 40 / Math.max(speed, 10) : 20)) : '—'} min</p>
-              </div>
-              <div className="rounded-lg bg-muted p-3">
-                <p className="text-xs text-muted-foreground">Status</p>
-                <p className={`font-medium ${status.tone === 'success' ? 'text-emerald-600' : 'text-gray-500'}`}>{status.label}</p>
-              </div>
-            </div>
-
-            {onBusClick && (
-              <button onClick={() => { onBusClick(); setSelected(false); }} className="btn-primary w-full mt-4">
-                Center on Bus
-              </button>
-            )}
-          </motion.div>
-        </div>
+      {position && !following && (
+        <button
+          type="button"
+          onClick={() => setFollowing(true)}
+          className="absolute bottom-4 right-4 z-[400] btn-secondary shadow-md"
+        >
+          <LocateFixed size={18} aria-hidden="true" /> Centre on bus
+        </button>
       )}
 
-      <MapContainer center={defaultCenter} zoom={14} className="w-full h-full z-0">
+      <MapContainer center={center} zoom={14} className="w-full h-full z-0" aria-label={`Map showing ${label}`}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
-
-        {/* Route polyline */}
-        {polyline.length > 1 && (
-          <Polyline positions={polyline} pathOptions={{ color: '#3b82f6', weight: 5, opacity: 0.7 }} />
-        )}
-
-        {/* Pickup point markers */}
-        {pickupPoints
-          .filter((p) => p.lat != null && p.lng != null)
-          .map((p, i) => (
-            <Marker key={p.id || i} position={[p.lat, p.lng]}>
-              <Popup>
-                <div className="p-1 text-sm font-medium">Stop: {p.name || `Stop ${i + 1}`}</div>
-              </Popup>
-            </Marker>
-          ))}
-
-{/* Animated bus marker */}
-        {displayPos && (
-          <Marker
-            position={[displayPos.lat, displayPos.lng]}
-            icon={busIcon}
-            eventHandlers={{ click: () => setSelected(true) }}
-          >
-            <Popup>
-              <div className="p-2 min-w-[150px]">
-                <h3 className="font-bold text-base text-slate-900 mb-1">{label}</h3>
-                <div className="text-xs text-slate-600">Tap the bus for details</div>
-              </div>
-            </Popup>
+        {line.length > 1 && <Polyline positions={line} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.6 }} />}
+        {mapped.map((s) => (
+          <Marker key={s.id} position={[s.lat, s.lng]} icon={stopIcon(s.id === myStopId)} keyboard={false}>
+            <Tooltip direction="top" offset={[0, -8]} permanent={s.id === myStopId}>
+              {s.id === myStopId ? `Your stop: ${s.name}` : s.name}
+            </Tooltip>
+          </Marker>
+        ))}
+        {display && (
+          <Marker position={[display.lat, display.lng]} icon={busIcon(status)} zIndexOffset={1000}>
+            <Tooltip direction="top" offset={[0, -22]}>{label}</Tooltip>
           </Marker>
         )}
-
-        <CenterControl target={rawPos} onCenter={setCenterBus} />
+        <FollowBus target={position} following={following} onUserMove={stopFollowing} fitTo={line} />
       </MapContainer>
-
-      {/* Details bottom card */}
-      <div className="absolute bottom-4 left-4 right-4 sm:right-16 z-[400]">
-        <div className="glass-card p-4 shadow-lg">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 shrink-0 rounded-lg bg-primary-600 text-white flex items-center justify-center" aria-hidden="true">
-                <BusFront size={22} />
-              </div>
-              <div className="min-w-0">
-                <p className="font-bold text-gray-800 dark:text-gray-100 truncate">{label}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Driver: {driverName}</p>
-              </div>
-            </div>
-            <span
-              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                status.tone === 'success'
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-                  : 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${status.tone === 'success' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
-              {status.label}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-            <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-2.5">
-              <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{speed} <span className="text-xs font-medium">km/h</span></p>
-              <p className="text-xs text-muted-foreground">Speed</p>
-            </div>
-            <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-2.5">
-              <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{rawPos ? '~' : '—'}{rawPos ? Math.max(5, Math.round(speed ? 40 / Math.max(speed, 10) : 20)) : '—'}<span className="text-xs font-medium">m</span></p>
-              <p className="text-xs text-muted-foreground">ETA</p>
-            </div>
-            <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-2.5">
-              <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{pickupPoints.length}</p>
-              <p className="text-xs text-muted-foreground">Stops</p>
-            </div>
-          </div>
-
-          {pickupPoints.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {pickupPoints.slice(0, 5).map((p, i) => (
-                <span key={p.id || i} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">
-                  <MapPin size={12} /> {p.name || `Stop ${i + 1}`}
-                </span>
-              ))}
-              {pickupPoints.length > 5 && (
-                <span className="px-2 py-1 rounded-lg text-[11px] font-medium bg-gray-100 dark:bg-white/10 text-gray-500">
-                  +{pickupPoints.length - 5} more
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
