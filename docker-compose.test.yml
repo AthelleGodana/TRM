@@ -1,0 +1,20 @@
+# Throwaway database for the server test suite (cd server && npm run test:db).
+# Data lives in tmpfs and is discarded when the container stops. The
+# credentials only exist inside this container.
+name: transtrack-test
+services:
+  postgres-test:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test_only_password
+      POSTGRES_DB: transtrack_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d transtrack_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

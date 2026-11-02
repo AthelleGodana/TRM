@@ -1,0 +1,12 @@
+# Development-only override: publishes ai-fuel-service on the loopback
+# interface so an API running on the host (npm run dev) can reach it at
+# http://127.0.0.1:8001. Never use this file in production.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d ai-fuel-service
+services:
+  ai-fuel-service:
+    # A container only on an `internal` network cannot publish ports, so it
+    # also joins the default network here.
+    networks: [ai-internal, default]
+    ports:
+      - "127.0.0.1:8001:8000"
