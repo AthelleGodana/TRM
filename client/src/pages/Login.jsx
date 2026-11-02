@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ErrorMessage from '../components/common/ErrorMessage';
 import ThemeToggle from '../components/common/ThemeToggle';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
+import Brand from '../components/layout/Brand';
 import { getAuthConfig, getDevAccounts } from '../services/auth.service';
 import { homeForRole } from '../config/roles';
 
@@ -34,17 +36,26 @@ function LegacyPasswordForm({ onSignedIn, onError }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 mt-4">
-      <input name="username" placeholder="Username" required autoComplete="username" className="input-field"
-        value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-      <input name="password" type="password" placeholder="Password" required autoComplete="current-password" className="input-field"
-        value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 mt-4 text-left">
+      <div>
+        <label htmlFor="legacy-username" className="field-label">Username</label>
+        <input id="legacy-username" name="username" required autoComplete="username" className="input-field"
+          value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+      </div>
+      <div>
+        <label htmlFor="legacy-password" className="field-label">Password</label>
+        <input id="legacy-password" name="password" type="password" required autoComplete="current-password" className="input-field"
+          value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+      </div>
       <button type="submit" disabled={submitting} className="btn-secondary">
         {submitting ? 'Signing in...' : 'Sign in with username'}
       </button>
     </form>
   );
 }
+
+// Signed in with Google but no organisation session yet (see Onboarding).
+const ONBOARDING_STATUSES = ['NEEDS_ONBOARDING', 'ACCESS_PENDING', 'ACCESS_REJECTED'];
 
 const ROLE_NAMES = {
   ORG_ADMIN: 'Organisation admin', FLEET_MANAGER: 'Transport officer', DRIVER: 'Driver', STUDENT: 'Student', PARENT: 'Parent',
@@ -56,18 +67,20 @@ function DemoAccounts({ onPick, busy }) {
   useEffect(() => { getDevAccounts().then((d) => setAccounts(d.accounts)).catch(() => setAccounts([])); }, []);
   if (!accounts) return null;
   return (
-    <div className="mt-6">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Demo accounts · development only</p>
+    <section className="mt-6 pt-5 border-t border-border" aria-labelledby="demo-title">
+      <h2 id="demo-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+        <KeyRound size={14} aria-hidden="true" /> Demo accounts · development only
+      </h2>
       {accounts.length === 0 ? (
-        <p className="text-xs text-gray-500">No demo accounts yet. Run <code>npm run db:seed</code> in server/.</p>
+        <p className="text-sm text-muted-foreground">No demo accounts yet. Run <code>npm run db:seed</code> in server/.</p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="flex flex-col gap-1.5 max-h-80 overflow-y-auto">
           {accounts.map((a) => (
             <li key={a.email}>
               <button type="button" disabled={busy} onClick={() => onPick(a.email)}
-                className="w-full text-left px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-900/5 dark:hover:bg-white/5 text-sm min-h-11">
-                <span className="block font-medium text-gray-800 dark:text-gray-100">{a.name}</span>
-                <span className="block text-xs text-gray-500 dark:text-gray-400">
+                className="w-full text-left px-3 py-2 rounded-lg border border-border hover:bg-muted transition-colors text-sm min-h-11">
+                <span className="block font-medium text-foreground">{a.name}</span>
+                <span className="block text-xs text-muted-foreground">
                   {a.superAdmin ? 'Platform admin' : a.memberships.map((m) => `${ROLE_NAMES[m.role] || m.role} · ${m.organization}`).join(', ')}
                 </span>
               </button>
@@ -75,7 +88,7 @@ function DemoAccounts({ onPick, busy }) {
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -107,8 +120,10 @@ export default function Login() {
     try {
       const result = await signIn();
       if (result.status === 'ACTIVE') return goHome(result.session);
-      if (result.status === 'NEEDS_ONBOARDING') {
-        return navigate('/onboarding', { state: { token: result.onboardingToken, user: result.user } });
+      if (ONBOARDING_STATUSES.includes(result.status)) {
+        return navigate('/onboarding', {
+          state: { token: result.onboardingToken, user: result.user, status: result.status, organizations: result.organizations },
+        });
       }
       setError(result.error || REDIRECT_ERRORS[result.status] || 'You cannot sign in right now.');
     } catch (err) {
@@ -119,47 +134,48 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-mesh-light dark:bg-mesh-dark bg-gray-50 dark:bg-surface-dark relative overflow-hidden">
-      <div className="absolute top-4 right-4"><ThemeToggle /></div>
+    <div className="min-h-dvh flex flex-col bg-background">
+      <header className="flex items-center justify-between px-4 sm:px-6 h-16" style={{ marginTop: 'env(safe-area-inset-top)' }}>
+        <Brand />
+        <ThemeToggle />
+      </header>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="w-full max-w-sm glass-card p-7"
-      >
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-primary-500 to-accent-violet flex items-center justify-center text-xl shadow-glow mb-3">🚌</div>
-          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">Welcome to Transtrack</h1>
-          <p className="text-xs text-gray-400 mt-1">Transport for universities, schools and companies</p>
-        </div>
+      <main className="flex-1 flex items-start sm:items-center justify-center px-4 pb-10 pt-4">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="w-full max-w-sm glass-card p-6 sm:p-7"
+        >
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Sign in</h1>
+          <p className="text-sm text-muted-foreground mt-1 mb-5">Transport and live tracking for universities, schools and companies.</p>
 
-        <ErrorMessage message={error} />
+          <ErrorMessage message={error} />
 
-        {!config ? (
-          <div className="h-11 rounded-full skeleton" />
-        ) : config.googleClientId ? (
-          <GoogleSignInButton clientId={config.googleClientId} onCredential={handleCredential} onError={setError} />
-        ) : (
-          <p className="text-sm text-center text-amber-700 dark:text-amber-400">
-            Google sign-in isn't set up on this server yet. Set GOOGLE_CLIENT_ID (see README: “Creating the Google OAuth client”).
+          {!config ? (
+            <div className="h-11 rounded-full skeleton" aria-hidden="true" />
+          ) : config.googleClientId ? (
+            <GoogleSignInButton clientId={config.googleClientId} onCredential={handleCredential} onError={setError} />
+          ) : (
+            <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3.5 py-2.5">
+              Google sign-in isn't set up on this server yet. Set GOOGLE_CLIENT_ID (see README: “Creating the Google OAuth client”).
+            </p>
+          )}
+          {busy && <p role="status" className="text-sm text-center text-muted-foreground mt-3">Signing you in...</p>}
+
+          <p className="text-sm text-muted-foreground mt-5 leading-relaxed">
+            Use the Google account your organisation invited. Not invited yet? Sign in, then ask your organisation for access.
           </p>
-        )}
-        {busy && <p className="text-xs text-center text-gray-400 mt-3">Signing you in...</p>}
 
-        <p className="text-xs text-center text-gray-400 mt-5 leading-relaxed">
-          Use the Google account your organisation invited. New here? Sign in and you can request access or register your organisation.
-        </p>
+          {config?.devLogin && <DemoAccounts onPick={handleDemo} busy={busy} />}
 
-        {config?.devLogin && <DemoAccounts onPick={handleDemo} busy={busy} />}
-
-        {config?.legacyPasswordLogin && (
-          <div className="mt-4 text-center">
-            {showLegacy
-              ? <LegacyPasswordForm onSignedIn={goHome} onError={setError} />
-              : <button type="button" onClick={() => setShowLegacy(true)} className="text-xs text-primary-600 dark:text-primary-400">Use a username instead</button>}
-          </div>
-        )}
-      </motion.div>
+          {config?.legacyPasswordLogin && (
+            <div className="mt-4 text-center">
+              {showLegacy
+                ? <LegacyPasswordForm onSignedIn={goHome} onError={setError} />
+                : <button type="button" onClick={() => setShowLegacy(true)} className="btn-ghost text-link">Use a username instead</button>}
+            </div>
+          )}
+        </motion.div>
+      </main>
     </div>
   );
 }
