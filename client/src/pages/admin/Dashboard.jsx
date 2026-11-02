@@ -14,8 +14,10 @@ import ManageStudents from './ManageStudents';
 import Billing from './Billing';
 import Members from './Members';
 import FuelHub from './fuel/FuelHub';
+import LiveFleet from './LiveFleet';
 
 const PAGES = {
+  live: <LiveFleet />,
   routes: <ManageRoutes />,
   buses: <ManageBuses />,
   drivers: <ManageDrivers />,
@@ -27,16 +29,17 @@ const PAGES = {
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-function Kpi({ icon: Icon, label, value, detail }) {
+function Kpi({ icon: Icon, label, value, detail, to }) {
+  const Box = to ? Link : 'div';
   return (
-    <div className="glass-card p-4">
+    <Box {...(to ? { to } : {})} className={to ? 'card-link p-4' : 'glass-card p-4'}>
       <div className="flex items-center gap-2 text-muted-foreground">
         <Icon size={18} aria-hidden="true" />
         <span className="text-sm font-medium">{label}</span>
       </div>
       <p className="mt-2 text-2xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
       {detail && <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>}
-    </div>
+    </Box>
   );
 }
 
@@ -136,7 +139,7 @@ function Overview({ waiting }) {
           <>
             <Kpi icon={Bus} label="Vehicles" value={data.totalBuses}
               detail={health ? `${health.operational} operational · ${health.inService} in service` : undefined} />
-            <Kpi icon={Activity} label="Reporting live" value={`${data.onTimePerformance}%`} detail="GPS in the last 30 min" />
+            <Kpi icon={Activity} label="Reporting live" value={`${data.onTimePerformance}%`} detail="GPS in the last 30 min · open live map" to="/admin/live" />
             <Kpi icon={GraduationCap} label={passengerLabel} value={data.totalStudents} />
             <Kpi icon={Gauge} label="Seat utilisation" value={`${data.fleetUtilization}%`} detail="Across all routes" />
           </>

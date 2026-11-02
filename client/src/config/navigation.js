@@ -1,5 +1,5 @@
 import {
-  Bus, CreditCard, Fuel, GraduationCap, House, IdCard, LayoutDashboard, Map, MapPin, Route, User, Users, Wallet,
+  Bus, CreditCard, Fuel, GraduationCap, House, IdCard, LayoutDashboard, Map, MapPin, Radar, Route, User, Users, Wallet,
 } from 'lucide-react';
 
 // Menus are driven by the user's role and the organisation's feature
@@ -10,6 +10,7 @@ const STAFF = ['ORG_ADMIN', 'FLEET_MANAGER'];
 
 // Staff area pages, routed under /admin/<to>. `short` is the bottom-tab label.
 export const ADMIN_MENU = [
+  { to: 'live', label: 'Live map', short: 'Live', icon: Radar, roles: STAFF, description: 'Where every vehicle is right now' },
   { to: 'routes', label: 'Routes & Stops', short: 'Routes', icon: Map, roles: STAFF, description: 'Routes, stops and timings' },
   { to: 'buses', label: 'Fleet', icon: Bus, roles: STAFF, description: 'Vehicles, capacity and status' },
   { to: 'drivers', label: 'Drivers', icon: IdCard, roles: STAFF, description: 'Drivers and assignments' },
