@@ -152,6 +152,34 @@ The migrations move existing single-tenant data into a **Default Organisation**:
 5. Each person signs in with Google. Accounts with a matching email are linked automatically. For other migrated members (drivers had no email), an ORG_ADMIN enters their Google email on the **People & Access** page.
 6. From the Platform console, turn on Fuel Hub for organisations that should have it.
 
+## Live GPS tracking
+
+- **Drivers** share their location whenever the driver app is open. Drivers are expected to use devices supplied by their employer.
+  - The phone sends a reading about every 5 seconds, or sooner after moving 50 m. Only the latest reading is sent, so nothing piles up while offline.
+  - The screen is kept awake, because browsers pause GPS when the app is in the background or the phone is locked.
+  - The driver screen explains blocked or weak GPS, and has **Report delay** and **Emergency** buttons.
+- **Server** ([server/src/services/gpsIngest.js](server/src/services/gpsIngest.js)):
+  - Rejects invalid readings and readings with accuracy worse than 100 m.
+  - Broadcasts at most every 2 s.
+  - Stores a point at most every 15 s, or after 50 m of movement.
+  - Drivers join their bus's room on connect. `bus:offline` is sent when the driver disconnects.
+- **Passengers and parents** see their bus with:
+  - its status: Moving, Stopped or Offline (no update for 2 minutes);
+  - when it last updated;
+  - an estimated arrival at their own stop, along the route at the bus's recent speed, compared with the pickup slot they booked or the route time;
+  - an in-app alert when the bus is about 3 minutes or 1 km away.
+- **Reconnects:** the client keeps one socket for the whole app. It re-subscribes after every reconnect, and refreshes an expired session before reconnecting ([client/src/services/socket.js](client/src/services/socket.js)).
+- **Staff** get a **Live map** with every vehicle, status filters, today's trail for the selected vehicle, and a feed of driver alerts. It uses `GET /api/gps/live`, and `GET /api/gps/history/:busId` returns today's trail for staff and only the latest point for everyone else.
+
+### Testing GPS with a real phone
+
+Browsers only allow GPS on `https` or `localhost`, so a phone on your Wi-Fi can't share its location from `http://192.168.x.x`.
+
+1. Run the API as usual (`cd server && npm run dev`).
+2. Run `cd client && npm run dev:phone`. This serves the site over HTTPS on your network with a self-signed certificate and prints a `Network` address such as `https://192.168.1.20:5173`.
+3. On the phone, open that address. Accept the certificate warning (Advanced → Proceed), and sign in as `uni-driver` with the development sign-in form. If the page doesn't load, allow Node.js through the Windows firewall for private networks.
+4. Allow location access. On a laptop, sign in as `uni-student` or `uni-admin` (Live map) to watch the bus move.
+
 ## Deploying on a single VPS (low cost)
 
 The whole stack (PostgreSQL, API, AI stub) runs with Docker Compose on one small Linux VPS. A 2 GB / 1 vCPU machine at about US$5–10 a month comfortably serves a few organisations. Nothing in the app needs a paid service: Google sign-in is free, there is no email or SMS, and map tiles default to OpenStreetMap.

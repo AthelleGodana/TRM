@@ -1,9 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 
-export default defineConfig({
+// `npm run dev:phone` (mode "phone") serves the dev site over HTTPS on the
+// local network with a self-signed certificate, because browsers only
+// allow GPS on https or localhost. Used to test a real phone as the driver.
+export default defineConfig(({ mode }) => ({
   plugins: [
+    ...(mode === 'phone' ? [basicSsl()] : []),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -65,4 +70,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

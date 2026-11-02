@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:phone": "vite --mode phone --host",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -22,6 +23,7 @@
     "socket.io-client": "^4.7.4"
   },
   "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.35",
