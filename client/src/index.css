@@ -1,99 +1,172 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html { scroll-behavior: smooth; }
+/* ── Theme tokens (RGB channels; see tailwind.config.js) ──────────────────
+   Light values are MASTER.md's palette. Dark values are chosen for 4.5:1
+   text contrast; dark mode is opt-in (light is the default). */
+@layer base {
+  :root {
+    color-scheme: light;
+    --c-bg: 248 250 252;        /* #F8FAFC */
+    --c-fg: 30 41 59;           /* #1E293B */
+    --c-card: 255 255 255;
+    --c-muted: 241 245 249;     /* #F1F5F9 */
+    --c-muted-fg: 71 85 105;    /* #475569 */
+    --c-border: 226 232 240;    /* #E2E8F0 */
+    --c-primary: 37 99 235;     /* #2563EB */
+    --c-link: 29 78 216;        /* #1D4ED8 */
+    --c-ring: 37 99 235;
+    --c-accent: 234 88 12;      /* #EA580C, black text on it */
+    --c-danger: 220 38 38;      /* #DC2626 */
+    --c-gray-400: 91 107 128;   /* #5B6B80: 4.9:1 even on the muted surface */
+    --c-gray-500: 71 85 105;    /* #475569 */
+  }
+  .dark {
+    color-scheme: dark;
+    --c-bg: 11 17 32;           /* #0B1120 */
+    --c-fg: 226 232 240;        /* #E2E8F0 */
+    --c-card: 17 24 39;         /* #111827 */
+    --c-muted: 30 41 59;        /* #1E293B */
+    --c-muted-fg: 148 163 184;  /* #94A3B8 */
+    --c-border: 51 65 85;       /* #334155 */
+    --c-primary: 37 99 235;
+    --c-link: 96 165 250;       /* #60A5FA */
+    --c-ring: 96 165 250;
+    --c-accent: 249 115 22;     /* #F97316 */
+    --c-danger: 248 113 113;    /* #F87171 */
+    --c-gray-400: 148 163 184;  /* #94A3B8 */
+    --c-gray-500: 148 163 184;
+  }
 
-body {
-  @apply bg-gray-50 text-gray-900 dark:bg-surface-dark dark:text-gray-100 transition-colors duration-300;
-  font-family: 'Inter', system-ui, sans-serif;
+  html {
+    -webkit-text-size-adjust: 100%;
+    /* Keeps focused elements clear of the sticky top bar. */
+    scroll-padding-top: 4.5rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+  body {
+    @apply bg-background text-foreground antialiased min-h-dvh;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-ring));
+    outline-offset: 2px;
+  }
+  button:not(:disabled), [role='button'], a[href], summary, select, label[for] {
+    cursor: pointer;
+  }
+  button:disabled { cursor: not-allowed; }
+  h1, h2, h3 { text-wrap: balance; }
 }
 
-/* ── Glassmorphism primitives ─────────────────────────────────────────── */
+/* ── Primitives ───────────────────────────────────────────────────────── */
 @layer components {
-  .glass {
-    @apply bg-white/70 dark:bg-white/5 backdrop-blur-lg border border-white/40 dark:border-white/10 shadow-glass dark:shadow-glass-dark;
+  /* Solid surfaces; the old glass names are kept so pages restyle. */
+  .glass { @apply bg-card text-card-foreground border border-border shadow-sm; }
+  .glass-card { @apply glass rounded-xl; }
+  .card-link {
+    @apply glass-card block transition-colors duration-200 hover:border-primary-300 hover:bg-muted/50
+           dark:hover:border-primary-500/50;
   }
-  .glass-card {
-    @apply glass rounded-2xl;
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 min-h-11 px-4 rounded-lg text-sm font-semibold
+           transition-colors duration-200 select-none disabled:opacity-50;
   }
-  .btn-primary {
-    @apply bg-gradient-to-r from-primary-600 to-accent-violet text-white font-medium rounded-xl px-4 py-2.5
-           shadow-glow hover:shadow-lg hover:brightness-110 active:scale-[0.98] transition-all duration-200
-           disabled:opacity-50 disabled:pointer-events-none;
+  .btn-primary { @apply btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800; }
+  .btn-secondary { @apply btn bg-card text-foreground border border-border hover:bg-muted; }
+  .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800; }
+  .btn-accent { @apply btn bg-accent text-black hover:brightness-95; }
+  .btn-ghost { @apply btn text-muted-foreground hover:bg-muted hover:text-foreground; }
+  .btn-sm { @apply min-h-9 px-3 text-xs; }
+  .icon-btn {
+    @apply inline-flex items-center justify-center min-w-11 min-h-11 rounded-lg text-muted-foreground
+           hover:bg-muted hover:text-foreground transition-colors duration-200;
   }
-  .btn-secondary {
-    @apply glass rounded-xl px-4 py-2.5 font-medium text-gray-700 dark:text-gray-200
-           hover:bg-white/90 dark:hover:bg-white/10 active:scale-[0.98] transition-all duration-200;
-  }
-  .btn-danger {
-    @apply bg-gradient-to-r from-rose-600 to-rose-500 text-white font-medium rounded-xl px-4 py-2.5
-           hover:brightness-110 active:scale-[0.98] transition-all duration-200 disabled:opacity-50;
-  }
+
+  /* 16px text on small screens prevents iOS zoom on focus. */
   .input-field {
-    @apply w-full bg-white/60 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm
-           placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500
-           transition-all duration-150;
+    @apply w-full min-h-11 bg-card text-foreground border border-border rounded-lg px-3.5 py-2.5
+           text-base sm:text-sm placeholder:text-gray-400 transition-colors duration-150
+           focus:outline-none focus:border-primary-600 focus:ring-2 focus:ring-ring/30
+           aria-[invalid=true]:border-danger;
   }
-  .badge {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold;
-  }
-  .badge-success { @apply badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400; }
-  .badge-warning { @apply badge bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400; }
-  .badge-danger  { @apply badge bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400; }
-  .badge-info    { @apply badge bg-primary-100 text-primary-700 dark:bg-primary-500/15 dark:text-primary-400; }
-  .badge-neutral { @apply badge bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300; }
+  .field-label { @apply block text-sm font-medium text-foreground mb-1.5; }
+  .field-hint { @apply mt-1 text-xs text-muted-foreground; }
+  .field-error { @apply mt-1 text-xs font-medium text-danger; }
+
+  .page { @apply mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8; }
+  .page-narrow { @apply mx-auto w-full max-w-2xl px-4 py-6 sm:px-6; }
+  .page-header { @apply mb-5 flex flex-wrap items-end justify-between gap-3; }
+  .page-title { @apply text-xl font-bold tracking-tight text-foreground; }
+  .page-subtitle { @apply mt-0.5 text-sm text-muted-foreground; }
+  .section-title { @apply text-base font-semibold text-foreground; }
+
+  .badge { @apply inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+  .badge-success { @apply badge bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300; }
+  .badge-warning { @apply badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300; }
+  .badge-danger  { @apply badge bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300; }
+  .badge-info    { @apply badge bg-primary-100 text-primary-800 dark:bg-primary-500/15 dark:text-primary-300; }
+  .badge-neutral { @apply badge bg-muted text-muted-foreground; }
+
+  .data-table { @apply w-full text-sm; }
+  .data-table th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground; }
+  .data-table td { @apply px-3 py-2.5 border-t border-border align-top; }
 }
 
-/* ── Skeleton loading shimmer ─────────────────────────────────────────── */
+/* ── Skeleton loading ─────────────────────────────────────────────────── */
 .skeleton {
-  @apply relative overflow-hidden bg-gray-200/70 dark:bg-white/10 rounded-lg;
+  @apply relative overflow-hidden bg-muted rounded-lg;
   background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
   background-size: 1000px 100%;
   animation: shimmer 1.8s linear infinite;
 }
-.dark .skeleton { background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
+.dark .skeleton { background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); }
 
 /* ── Map ──────────────────────────────────────────────────────────────── */
 .map-container {
   height: 420px;
   width: 100%;
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   overflow: hidden;
 }
-/* Animated 🚌 emoji marker for live bus tracking */
+/* Live bus marker: an SVG bus inside a coloured disc (see LiveMap.jsx). */
 .transtrack-bus-icon {
   background: transparent !important;
   border: none !important;
 }
-.bus-emoji-marker {
-  width: 44px;
-  height: 44px;
+.bus-marker {
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30px;
-  line-height: 1;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
-  animation: bus-bounce 1.6s ease-in-out infinite;
+  border-radius: 9999px;
+  background: #2563eb;
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
 }
-@keyframes bus-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-.leaflet-popup-content-wrapper {
-  border-radius: 12px !important;
-}
-.bus-marker-icon { filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
+.leaflet-popup-content-wrapper { border-radius: 10px !important; }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { @apply bg-gray-300 dark:bg-white/15 rounded-full; }
+::-webkit-scrollbar-thumb { @apply bg-slate-300 dark:bg-slate-700 rounded-full; }
 
-/* ── iOS pull-to-refresh tint (standalone PWA) ───────────────────────── */
 @media (display-mode: standalone) {
   body { overscroll-behavior-y: contain; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

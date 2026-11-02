@@ -1,3 +1,10 @@
+import colors from 'tailwindcss/colors';
+
+// Semantic colours come from CSS variables (src/index.css), so light and
+// dark themes swap in one place. Values follow
+// design-system/transtrack-kenya/MASTER.md.
+const token = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -5,38 +12,47 @@ export default {
   theme: {
     extend: {
       colors: {
+        background: token('bg'),
+        foreground: token('fg'),
+        card: { DEFAULT: token('card'), foreground: token('fg') },
+        muted: { DEFAULT: token('muted'), foreground: token('muted-fg') },
+        border: token('border'),
+        ring: token('ring'),
+        link: token('link'),
         primary: {
+          DEFAULT: token('primary'),
           50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd',
           400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
           800: '#1e40af', 900: '#1e3a8a',
         },
-        surface: {
-          light: '#ffffff',
-          dark: '#0f172a',
-          darkCard: '#111827',
-        },
         accent: {
-          cyan: '#22d3ee',
-          violet: '#8b5cf6',
-          emerald: '#10b981',
-          amber: '#f59e0b',
-          rose: '#f43f5e',
+          DEFAULT: token('accent'),
+          cyan: '#0891b2',
+          violet: '#7c3aed',
+          emerald: '#059669',
+          amber: '#d97706',
+          rose: '#e11d48',
         },
+        danger: token('danger'),
+        // Slate, with the shades used for secondary text (400/500) bound to
+        // theme variables so they meet 4.5:1 contrast in light and dark.
+        gray: { ...colors.slate, 400: token('gray-400'), 500: token('gray-500') },
+        // Older class names, kept so existing pages pick up the tokens.
+        surface: { light: token('card'), dark: token('bg'), darkCard: token('card') },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'mesh-light': 'radial-gradient(at 0% 0%, rgba(59,130,246,0.12) 0, transparent 50%), radial-gradient(at 100% 0%, rgba(139,92,246,0.10) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(34,211,238,0.10) 0, transparent 50%)',
-        'mesh-dark': 'radial-gradient(at 0% 0%, rgba(59,130,246,0.20) 0, transparent 50%), radial-gradient(at 100% 0%, rgba(139,92,246,0.18) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(34,211,238,0.15) 0, transparent 50%)',
+        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
-        glass: '0 8px 32px 0 rgba(0, 0, 0, 0.12)',
-        'glass-dark': '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
-        glow: '0 0 24px rgba(59, 130, 246, 0.35)',
+        sm: '0 1px 2px rgba(15, 23, 42, 0.06)',
+        md: '0 4px 6px rgba(15, 23, 42, 0.08)',
+        lg: '0 10px 15px rgba(15, 23, 42, 0.10)',
+        xl: '0 20px 25px rgba(15, 23, 42, 0.14)',
+        // Older names; the flat style has no glow or glass shadows.
+        glass: '0 1px 2px rgba(15, 23, 42, 0.06)',
+        'glass-dark': '0 1px 2px rgba(0, 0, 0, 0.4)',
+        glow: 'none',
       },
-      backdropBlur: { xs: '2px' },
       animation: {
         'pulse-ring': 'pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         shimmer: 'shimmer 1.8s linear infinite',
