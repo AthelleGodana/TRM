@@ -127,22 +127,24 @@ export function registerGpsSocket(io) {
       ack({ ok: true });
     });
 
-    on('driver:emergency', async ({ message }) => {
+    on('driver:emergency', async ({ message }, ack) => {
       const busId = await driverBus();
-      if (!busId) return;
+      if (!busId) return ack({ ok: false });
       const text = typeof message === 'string' && message.trim() ? message.trim().slice(0, 500) : 'Emergency reported by the driver.';
       const at = new Date().toISOString();
       io.to(rooms.bus(orgId, busId)).emit('bus:emergency', { busId, message: text, at });
       io.to(rooms.staff(orgId)).emit('admin:alert', { type: 'EMERGENCY', busId, message: text, at });
+      ack({ ok: true });
     });
 
-    on('driver:delay', async ({ minutes }) => {
+    on('driver:delay', async ({ minutes }, ack) => {
       const busId = await driverBus();
-      if (!busId) return;
+      if (!busId) return ack({ ok: false });
       const mins = Math.min(Math.max(Number(minutes) || 5, 1), 240);
       const at = new Date().toISOString();
       io.to(rooms.bus(orgId, busId)).emit('bus:delay', { busId, minutes: mins, at });
       io.to(rooms.staff(orgId)).emit('admin:alert', { type: 'DELAY', busId, minutes: mins, at });
+      ack({ ok: true });
     });
 
     on('boarding:update', async ({ studentId, status }) => {
