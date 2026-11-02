@@ -2,6 +2,7 @@ import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { isStaff } from '../config/roles.js';
 import { findDriverBus as getBusForDriver } from '../services/busAccess.js';
+import { passengerName } from '../services/passenger.service.js';
 
 // Staff pick the bus explicitly; it must exist in their organisation.
 async function getBusForStaff(rawId) {
@@ -152,7 +153,7 @@ export const getRoster = asyncHandler(async (req, res) => {
       user: { select: { firstName: true, lastName: true } },
       arrivePickupPoint: true,
     },
-    orderBy: { user: { firstName: 'asc' } },
+    orderBy: { id: 'asc' },
   });
 
   const today = new Date();
@@ -165,11 +166,11 @@ export const getRoster = asyncHandler(async (req, res) => {
     const entry = entries.find((e) => e.studentId === s.id);
     return {
       id: s.id,
-      name: `${s.user.firstName} ${s.user.lastName}`,
+      name: passengerName(s),
       pickup: s.arrivePickupPoint?.name || '—',
       status: entry?.status || 'PENDING',
     };
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   const boarded = roster.filter((r) => r.status === 'BOARDED').length;
   const noShow = roster.filter((r) => r.status === 'NO_SHOW').length;

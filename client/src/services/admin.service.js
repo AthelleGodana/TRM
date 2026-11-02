@@ -17,3 +17,9 @@ export const listAllPayments = (status) =>
   api.get('/admin/payments', { params: status ? { status } : {} }).then((r) => r.data);
 
 export const getBillingOverview = () => api.get('/admin/billing/overview').then((r) => r.data);
+
+// Passenger records without accounts (school pupils) and their parents.
+export const createPupil = (payload) => api.post('/admin/pupils', payload).then((r) => r.data);
+export const listParents = () => api.get('/admin/parents').then((r) => r.data);
+export const linkGuardian = (pupilId, userId) => api.post(`/admin/pupils/${pupilId}/guardians`, { userId }).then((r) => r.data);
+export const unlinkGuardian = (pupilId, userId) => api.delete(`/admin/pupils/${pupilId}/guardians/${userId}`).then((r) => r.data);

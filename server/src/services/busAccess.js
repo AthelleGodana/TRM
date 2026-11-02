@@ -5,7 +5,7 @@ import { isStaff } from '../config/roles.js';
 // otherwise null. Lookups go through the tenant client, so a bus from
 // another organisation is never found. Staff see every bus in their
 // organisation; drivers see their own bus; students see the bus on their
-// route.
+// route; parents see the bus on any of their children's routes.
 export async function findViewableBus(user, busId) {
   const id = Number(busId);
   if (!Number.isInteger(id)) return null;
@@ -21,6 +21,12 @@ export async function findViewableBus(user, busId) {
   if (user.role === 'STUDENT') {
     const student = await prisma.student.findFirst({ where: { userId: user.id } });
     return student?.routeId && student.routeId === bus.routeId ? bus : null;
+  }
+  if (user.role === 'PARENT') {
+    const child = await prisma.passengerGuardian.findFirst({
+      where: { userId: user.id, student: { routeId: bus.routeId ?? -1 } },
+    });
+    return child ? bus : null;
   }
   return null;
 }

@@ -8,7 +8,9 @@ import { getMyBus } from '../../services/student.service';
 import { useSocket } from '../../hooks/useSocket';
 import { useToast } from '../../context/ToastContext';
 
-export default function TrackBus() {
+// Live view of a bus. Students load their own bus; parents pass loadBus to
+// follow a child's bus. The server only joins sockets it may see.
+export default function TrackBus({ loadBus = getMyBus }) {
   const [bus, setBus] = useState(null);
   const [position, setPosition] = useState(null);
   const [emergency, setEmergency] = useState(null);
@@ -19,7 +21,7 @@ export default function TrackBus() {
   const toast = useToast();
 
   useEffect(() => {
-    getMyBus()
+    loadBus()
       .then((data) => {
         setBus(data.bus);
         if (data.bus.lastLocation) {
@@ -28,7 +30,7 @@ export default function TrackBus() {
       })
       .catch((err) => setError(err.response?.data?.error || 'Could not load your bus.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [loadBus]);
 
   useEffect(() => {
     if (!bus) return;

@@ -16,6 +16,7 @@ import vehicleRoutes from './routes/vehicle.routes.js';
 import onboardingRoutes from './routes/onboarding.routes.js';
 import orgRoutes from './routes/org.routes.js';
 import platformRoutes from './routes/platform.routes.js';
+import parentRoutes from './routes/parent.routes.js';
 
 // Builds the Express app without binding a port, so tests can mount it
 // directly with supertest and index.js can attach Socket.io to it.
@@ -32,6 +33,7 @@ export function createApp() {
   app.use('/api/onboarding', onboardingRoutes);
   app.use('/api/org', orgRoutes);
   app.use('/api/platform', platformRoutes);
+  app.use('/api/parents', parentRoutes);
   app.use('/api/students', studentRoutes);
   app.use('/api/drivers', driverRoutes);
   app.use('/api/admin', adminRoutes);

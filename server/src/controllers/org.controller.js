@@ -91,6 +91,7 @@ export const removeMember = asyncHandler(async (req, res) => {
   await tenantTransaction(async (tx) => {
     await tx.student.deleteMany({ where: { userId: member.userId } });
     await tx.driver.deleteMany({ where: { userId: member.userId } });
+    await tx.passengerGuardian.deleteMany({ where: { userId: member.userId } });
     await tx.membership.delete({ where: { id: member.id } });
   });
   res.json({ message: 'Member removed.' });

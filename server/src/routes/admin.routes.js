@@ -7,6 +7,7 @@ import {
 } from '../controllers/admin.controller.js';
 import { getBillingOverview } from '../controllers/analytics.controller.js';
 import { getFleetOverview } from '../controllers/fleet.controller.js';
+import { createPupil, linkGuardian, unlinkGuardian, listParents } from '../controllers/pupil.controller.js';
 import {
   createSlot, listSlotsAdmin,
 } from '../controllers/slot.controller.js';
@@ -35,6 +36,12 @@ router.post('/drivers/remove', orgAdminOnly, removeDrivers);
 
 router.get('/students', listStudents);
 router.post('/students/remove', orgAdminOnly, removeStudents);
+
+// Passenger records without accounts (school pupils) and their parents
+router.post('/pupils', createPupil);
+router.get('/parents', listParents);
+router.post('/pupils/:id/guardians', linkGuardian);
+router.delete('/pupils/:id/guardians/:userId', unlinkGuardian);
 
 router.get('/payments', orgAdminOnly, listAllPayments);
 router.get('/billing/overview', orgAdminOnly, getBillingOverview);

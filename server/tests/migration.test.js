@@ -97,11 +97,12 @@ describe('multi-tenancy data migration', () => {
   });
 
   it('enables and forces row-level security on every tenant table', async () => {
+    const rlsTables = [...TENANT_TABLES, 'Membership', 'Invitation', 'AccessRequest', 'PassengerGuardian'];
     const { rows } = await db.query(
       `SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY($1)`,
-      [TENANT_TABLES]
+      [rlsTables]
     );
-    expect(rows).toHaveLength(TENANT_TABLES.length);
+    expect(rows).toHaveLength(rlsTables.length);
     for (const r of rows) expect([r.relname, r.relrowsecurity, r.relforcerowsecurity]).toEqual([r.relname, true, true]);
   });
 

@@ -80,6 +80,7 @@ model Organization {
   tripRosters    TripRoster[]
   vehicleLogs    VehicleLog[]
   gpsLogs        GpsLog[]
+  guardians      PassengerGuardian[]
   payments       Payment[]
 }
 
@@ -191,12 +192,13 @@ model User {
   students Student[]
   drivers  Driver[]
 
+  guardianOf             PassengerGuardian[]
   memberships            Membership[]
   refreshTokens          RefreshToken[]
-  invitationsSent        Invitation[]    @relation("InvitationsSent")
-  invitationsAccepted    Invitation[]    @relation("InvitationsAccepted")
-  accessRequests         AccessRequest[] @relation("AccessRequests")
-  accessRequestsReviewed AccessRequest[] @relation("AccessRequestsReviewed")
+  invitationsSent        Invitation[]        @relation("InvitationsSent")
+  invitationsAccepted    Invitation[]        @relation("InvitationsAccepted")
+  accessRequests         AccessRequest[]     @relation("AccessRequests")
+  accessRequestsReviewed AccessRequest[]     @relation("AccessRequestsReviewed")
 }
 
 model Student {
@@ -205,6 +207,10 @@ model Student {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId         Int?
   user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Passengers without their own account (e.g. SCHOOL pupils) carry their
+  // name here and are linked to parent accounts through guardians.
+  firstName      String?
+  lastName       String?
   address        String?
   phone          String?
   email          String?
@@ -219,8 +225,9 @@ model Student {
   routeId Int?
   route   Route? @relation(fields: [routeId], references: [id])
 
-  payments Payment[]
-  roster   TripRoster[]
+  payments  Payment[]
+  guardians PassengerGuardian[]
+  roster    TripRoster[]
 
   createdAt DateTime @default(now())
 
@@ -403,4 +410,19 @@ model Payment {
   @@index([organizationId, status])
   @@index([organizationId, studentId])
   @@index([checkoutRequestId])
+}
+
+// Links a passenger record (e.g. a SCHOOL pupil) to a PARENT member.
+model PassengerGuardian {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  studentId      Int
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, studentId, userId])
+  @@index([organizationId, userId])
 }

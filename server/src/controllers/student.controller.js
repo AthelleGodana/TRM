@@ -1,6 +1,7 @@
 import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { canAccessPickupPoint } from '../utils/tier.js';
+import { busForRoute } from '../services/passenger.service.js';
 
 async function getStudentByUserId(userId) {
   return prisma.student.findFirst({ where: { userId } });
@@ -96,26 +97,7 @@ export const getMyBus = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'You are not registered on a route yet.' });
   }
 
-  const bus = await prisma.bus.findFirst({
-    where: { routeId: student.routeId },
-    include: {
-      driver: { include: { user: { select: { firstName: true, lastName: true } } } },
-      gpsLogs: { orderBy: { recordedAt: 'desc' }, take: 1 },
-      route: { include: { pickupPoints: { orderBy: { order: 'asc' } } } },
-    },
-  });
-
+  const bus = await busForRoute(student.routeId);
   if (!bus) return res.status(404).json({ error: 'No bus assigned to your route yet.' });
-
-  res.json({
-    bus: {
-      id: bus.id,
-      licensePlate: bus.licensePlate,
-      driver: bus.driver
-        ? `${bus.driver.user.firstName} ${bus.driver.user.lastName}`
-        : null,
-      lastLocation: bus.gpsLogs[0] || null,
-      route: bus.route ? { id: bus.route.id, name: bus.route.name, pickupPoints: bus.route.pickupPoints } : null,
-    },
-  });
+  res.json({ bus });
 });

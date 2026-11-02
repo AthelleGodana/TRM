@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Onboarding from './pages/Onboarding';
 import PlatformDashboard from './pages/platform/Dashboard';
+import ParentDashboard from './pages/parent/Dashboard';
 import StudentDashboard from './pages/student/Dashboard';
 import DriverDashboard from './pages/driver/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -74,6 +75,15 @@ return (
                 element={
                   <ProtectedRoute roles={['ORG_ADMIN', 'FLEET_MANAGER']}>
                     <AdminDashboard onInstall={handleInstallRequest} />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/parent/*"
+                element={
+                  <ProtectedRoute roles={['PARENT']}>
+                    <ParentDashboard onInstall={handleInstallRequest} />
                   </ProtectedRoute>
                 }
               />

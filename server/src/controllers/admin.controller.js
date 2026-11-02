@@ -1,4 +1,5 @@
 import prisma, { tenantTransaction } from '../config/db.js';
+import { presentPassenger } from '../services/passenger.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 // ── Routes & pickup points ──────────────────────────────────────────────
@@ -97,9 +98,11 @@ export const listStudents = asyncHandler(async (req, res) => {
     include: {
       user: { select: { firstName: true, lastName: true, email: true } },
       route: true,
+      guardians: { include: { user: { select: { id: true, name: true, firstName: true, lastName: true, email: true } } } },
     },
+    orderBy: { id: 'asc' },
   });
-  res.json({ students });
+  res.json({ students: students.map(presentPassenger) });
 });
 
 export const removeStudents = asyncHandler(async (req, res) => {
@@ -153,5 +156,5 @@ export const listAllPayments = asyncHandler(async (req, res) => {
     },
     orderBy: { createdAt: 'desc' },
   });
-  res.json({ payments });
+  res.json({ payments: payments.map((p) => ({ ...p, student: presentPassenger(p.student) })) });
 });

@@ -1,5 +1,6 @@
 import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { presentPassenger } from '../services/passenger.service.js';
 
 export const getMyRoute = asyncHandler(async (req, res) => {
   const driver = await prisma.driver.findFirst({ where: { userId: req.user.id } });
@@ -24,7 +25,7 @@ export const getMyRoute = asyncHandler(async (req, res) => {
       id: bus.id,
       licensePlate: bus.licensePlate,
       capacity: bus.capacity,
-      route: bus.route,
+      route: bus.route && { ...bus.route, students: bus.route.students.map(presentPassenger) },
       passengerCount: bus.route?.students?.length || 0,
     },
   });

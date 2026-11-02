@@ -17,7 +17,7 @@ import { getContext, runWithContext } from '../context/requestContext.js';
 export const TENANT_MODELS = new Set([
   'Student', 'Driver', 'Route', 'PickupPoint', 'Bus', 'PickupSlot',
   'TripRoster', 'VehicleLog', 'GpsLog', 'Payment',
-  'Membership', 'Invitation', 'AccessRequest',
+  'Membership', 'Invitation', 'AccessRequest', 'PassengerGuardian',
 ]);
 
 // Global models the tenant client must never touch directly; they would
