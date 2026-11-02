@@ -3,15 +3,19 @@ import { motion } from 'framer-motion';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { LocateFixed, MapPin } from 'lucide-react';
+import { BusFront, Clock, LocateFixed, MapPin, Siren, X } from 'lucide-react';
 
-// ── 🚌 Animated bus marker (divIcon rendering an emoji) ─────────────────
+// ── Bus marker: Lucide "bus-front" as static SVG in a blue disc ────────
+const BUS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" '
+  + 'stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M4 6 2 7"/><path d="M10 6h4"/><path d="m22 7-2-1"/><rect width="16" height="16" x="4" y="3" rx="2"/>'
+  + '<path d="M4 11h16"/><path d="M8 15h.01"/><path d="M16 15h.01"/><path d="M6 19v2"/><path d="M18 21v-2"/></svg>';
 const busIcon = L.divIcon({
   className: 'transtrack-bus-icon',
-  html: `<div class="bus-emoji-marker">🚌</div>`,
-  iconSize: [44, 44],
-  iconAnchor: [22, 22],
-  popupAnchor: [0, -22],
+  html: `<div class="bus-marker">${BUS_SVG}</div>`,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20],
 });
 
 // ── Smooth GPS interpolation between incoming positions ────────────────
@@ -78,6 +82,12 @@ export default function LiveMap({
   const [centerBus, setCenterBus] = useState(null);
   const [speed, setSpeed] = useState(0);
   const [selected, setSelected] = useState(false);
+  useEffect(() => {
+    if (!selected) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setSelected(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selected]);
   const lastPosRef = useRef(null);
   const lastTimeRef = useRef(null);
 
@@ -148,7 +158,7 @@ export default function LiveMap({
         <button
           onClick={() => centerBus && centerBus()}
           aria-label="Center on bus"
-          className="absolute bottom-4 right-4 z-[400] min-w-12 min-h-12 flex items-center justify-center rounded-xl bg-white/95 shadow-lg border border-slate-200 text-primary-600 hover:bg-white"
+          className="absolute bottom-4 right-4 z-[400] min-w-12 min-h-12 flex items-center justify-center rounded-lg bg-card shadow-md border border-border text-link hover:bg-muted"
         >
           <LocateFixed size={22} />
         </button>
@@ -158,13 +168,13 @@ export default function LiveMap({
       {(emergency || delay) && (
         <div className="absolute top-4 left-4 right-16 z-[400] pointer-events-none">
           {emergency && (
-            <div className="mb-2 rounded-xl bg-rose-600 text-white px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold animate-pulse">
-              <span className="text-lg">🚨</span> {emergency}
+            <div role="alert" className="mb-2 rounded-lg bg-red-600 text-white px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold">
+              <Siren size={18} aria-hidden="true" /> {emergency}
             </div>
           )}
           {delay && (
-            <div className="rounded-xl bg-amber-500 text-white px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold">
-              <span className="text-lg">⏱️</span> {delay}
+            <div role="status" className="rounded-lg bg-amber-400 text-black px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold">
+              <Clock size={18} aria-hidden="true" /> {delay}
             </div>
           )}
         </div>
@@ -173,37 +183,38 @@ export default function LiveMap({
       {/* Click-on-bus detail modal */}
       {selected && (
         <div className="absolute inset-0 z-[500] flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelected(false)} />
+          <div className="absolute inset-0 bg-slate-950/50" onClick={() => setSelected(false)} aria-hidden="true" />
           <motion.div
             initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
-            className="relative glass-card w-full max-w-sm bg-white dark:bg-surface-darkCard p-5 shadow-xl"
+            role="dialog" aria-modal="true" aria-label={`Bus ${label}`}
+            className="relative glass-card w-full max-w-sm p-5 shadow-xl"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary-600 to-accent-violet flex items-center justify-center text-xl shadow-glow">🚌</div>
+                <div className="w-11 h-11 rounded-lg bg-primary-600 text-white flex items-center justify-center" aria-hidden="true"><BusFront size={22} /></div>
                 <div>
                   <p className="font-bold text-gray-800 dark:text-gray-100">{label}</p>
                   <p className="text-xs text-gray-400">License plate</p>
                 </div>
               </div>
-              <button onClick={() => setSelected(false)} className="text-gray-400 hover:text-gray-700 dark:hover:text-white text-xl leading-none" aria-label="Close">✕</button>
+              <button type="button" onClick={() => setSelected(false)} className="icon-btn -mr-2" aria-label="Close" autoFocus><X size={20} aria-hidden="true" /></button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-3">
-                <p className="text-[11px] text-gray-400">Driver</p>
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-xs text-muted-foreground">Driver</p>
                 <p className="font-medium text-gray-800 dark:text-gray-100 truncate">{driverName}</p>
               </div>
-              <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-3">
-                <p className="text-[11px] text-gray-400">Speed</p>
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-xs text-muted-foreground">Speed</p>
                 <p className="font-medium text-gray-800 dark:text-gray-100">{speed} km/h</p>
               </div>
-              <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-3">
-                <p className="text-[11px] text-gray-400">ETA</p>
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-xs text-muted-foreground">ETA</p>
                 <p className="font-medium text-gray-800 dark:text-gray-100">~{rawPos ? Math.max(5, Math.round(speed ? 40 / Math.max(speed, 10) : 20)) : '—'} min</p>
               </div>
-              <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-3">
-                <p className="text-[11px] text-gray-400">Status</p>
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-xs text-muted-foreground">Status</p>
                 <p className={`font-medium ${status.tone === 'success' ? 'text-emerald-600' : 'text-gray-500'}`}>{status.label}</p>
               </div>
             </div>
@@ -234,7 +245,7 @@ export default function LiveMap({
           .map((p, i) => (
             <Marker key={p.id || i} position={[p.lat, p.lng]}>
               <Popup>
-                <div className="p-1 text-sm font-medium">🚏 {p.name || `Stop ${i + 1}`}</div>
+                <div className="p-1 text-sm font-medium">Stop: {p.name || `Stop ${i + 1}`}</div>
               </Popup>
             </Marker>
           ))}
@@ -248,8 +259,8 @@ export default function LiveMap({
           >
             <Popup>
               <div className="p-2 min-w-[150px]">
-                <h3 className="font-bold text-base text-slate-900 mb-1">🚌 {label}</h3>
-                <div className="text-xs text-slate-500">Tap to view details ⤴</div>
+                <h3 className="font-bold text-base text-slate-900 mb-1">{label}</h3>
+                <div className="text-xs text-slate-600">Tap the bus for details</div>
               </div>
             </Popup>
           </Marker>
@@ -260,11 +271,11 @@ export default function LiveMap({
 
       {/* Details bottom card */}
       <div className="absolute bottom-4 left-4 right-4 sm:right-16 z-[400]">
-        <div className="glass-card bg-white/95 dark:bg-surface-darkCard p-4 shadow-xl">
+        <div className="glass-card p-4 shadow-lg">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 min-w-12 rounded-2xl bg-gradient-to-br from-primary-600 to-accent-violet flex items-center justify-center text-2xl shadow-glow">
-                🚌
+              <div className="w-11 h-11 shrink-0 rounded-lg bg-primary-600 text-white flex items-center justify-center" aria-hidden="true">
+                <BusFront size={22} />
               </div>
               <div className="min-w-0">
                 <p className="font-bold text-gray-800 dark:text-gray-100 truncate">{label}</p>
@@ -286,15 +297,15 @@ export default function LiveMap({
           <div className="grid grid-cols-3 gap-2 mt-4 text-center">
             <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-2.5">
               <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{speed} <span className="text-xs font-medium">km/h</span></p>
-              <p className="text-[11px] text-gray-400">Speed</p>
+              <p className="text-xs text-muted-foreground">Speed</p>
             </div>
             <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-2.5">
               <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{rawPos ? '~' : '—'}{rawPos ? Math.max(5, Math.round(speed ? 40 / Math.max(speed, 10) : 20)) : '—'}<span className="text-xs font-medium">m</span></p>
-              <p className="text-[11px] text-gray-400">ETA</p>
+              <p className="text-xs text-muted-foreground">ETA</p>
             </div>
             <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-2.5">
               <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{pickupPoints.length}</p>
-              <p className="text-[11px] text-gray-400">Stops</p>
+              <p className="text-xs text-muted-foreground">Stops</p>
             </div>
           </div>
 

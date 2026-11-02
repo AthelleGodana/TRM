@@ -7,6 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import ButtonSelect from '../../components/common/ButtonSelect';
 import { createBus, listBuses, listDrivers, listRoutes, updateBusAssignment } from '../../services/admin.service';
+import PageHeader from '../../components/layout/PageHeader';
 
 export default function ManageBuses() {
   const [buses, setBuses] = useState([]);
@@ -55,18 +56,29 @@ export default function ManageBuses() {
     }
   };
 
-  if (loading) return <LoadingSpinner label="Loading buses..." />;
+  const header = <PageHeader title="Fleet" subtitle="Vehicles, their drivers and routes." />;
+  if (loading) return <div className="page max-w-3xl">{header}<LoadingSpinner label="Loading buses..." /></div>;
 
   return (
-    <div className="p-4 pb-10 max-w-2xl mx-auto">
+    <div className="page max-w-3xl">
+      {header}
       <ErrorMessage message={error} />
       <SuccessMessage message={message} />
 
       <motion.form initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} onSubmit={handleSubmit} className="glass-card p-5 flex flex-col gap-3 mb-6">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Add bus</h2>
-        <input name="licensePlate" placeholder="License plate" required value={form.licensePlate} onChange={handleChange} className="input-field" />
-        <input name="capacity" type="number" placeholder="Capacity" value={form.capacity} onChange={handleChange} className="input-field" />
-<label className="text-xs font-medium text-gray-500">Assign driver (optional)</label>
+        <h2 className="section-title">Add a vehicle</h2>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="bus-plate" className="field-label">Licence plate</label>
+            <input id="bus-plate" name="licensePlate" placeholder="e.g. KDA 123X" required autoCapitalize="characters"
+              value={form.licensePlate} onChange={handleChange} className="input-field" />
+          </div>
+          <div>
+            <label htmlFor="bus-capacity" className="field-label">Seats</label>
+            <input id="bus-capacity" name="capacity" type="number" inputMode="numeric" min="1" value={form.capacity} onChange={handleChange} className="input-field" />
+          </div>
+        </div>
+        <p className="field-label mb-0">Driver <span className="font-normal text-muted-foreground">(optional)</span></p>
         <ButtonSelect
           ariaLabel="Assign driver"
           allowClear
@@ -75,7 +87,7 @@ export default function ManageBuses() {
           value={String(form.driverId || '')}
           onChange={(v) => setForm({ ...form, driverId: v })}
         />
-        <label className="text-xs font-medium text-gray-500">Assign route (optional)</label>
+        <p className="field-label mb-0">Route <span className="font-normal text-muted-foreground">(optional)</span></p>
         <ButtonSelect
           ariaLabel="Assign route"
           allowClear
@@ -84,30 +96,31 @@ export default function ManageBuses() {
           value={String(form.routeId || '')}
           onChange={(v) => setForm({ ...form, routeId: v })}
         />
-        <motion.button whileTap={{ scale: 0.97 }} type="submit" className="btn-primary">Add Bus</motion.button>
+        <button type="submit" className="btn-primary">Add vehicle</button>
       </motion.form>
 
-      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2 px-1">Fleet</h2>
-      <div className="glass-card divide-y divide-gray-100 dark:divide-white/5">
+      <h2 className="section-title mb-2">Vehicles ({buses.length})</h2>
+      {buses.length === 0 && <div className="glass-card p-5 text-sm text-muted-foreground">No vehicles yet. Add your first one above.</div>}
+      <div className={buses.length ? 'glass-card divide-y divide-border' : 'hidden'}>
         {buses.map((b) => (
           <div key={b.id} className="p-4 text-sm flex items-center justify-between gap-3">
             <div>
-              <p className="font-medium text-gray-800 dark:text-gray-100">{b.licensePlate}</p>
-              <p className="text-xs text-gray-400">{b.capacity} seats · {b.route?.name || 'Unassigned route'}</p>
+              <p className="font-medium text-foreground tabular-nums">{b.licensePlate}</p>
+              <p className="text-xs text-muted-foreground">{b.capacity} seats · {b.route?.name || 'Unassigned route'}</p>
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge variant={b.driver ? 'success' : 'warning'} dot>
                 {b.driver ? `${b.driver.user.firstName} ${b.driver.user.lastName}` : 'No driver'}
               </StatusBadge>
-              <button onClick={() => openAssign(b)} className="text-xs font-medium text-primary-600 dark:text-primary-400">Edit</button>
+              <button type="button" onClick={() => openAssign(b)} className="btn-ghost btn-sm text-link" aria-label={`Edit ${b.licensePlate}`}>Edit</button>
             </div>
           </div>
         ))}
       </div>
 
-      <Modal open={!!assignBus} onClose={() => setAssignBus(null)} title={`Assign — ${assignBus?.licensePlate || ''}`}>
+      <Modal open={!!assignBus} onClose={() => setAssignBus(null)} title={`Edit ${assignBus?.licensePlate || ''}`}>
         <div className="flex flex-col gap-3">
-<label className="text-xs font-medium text-gray-500">Driver</label>
+          <p className="field-label mb-0">Driver</p>
           <ButtonSelect
             ariaLabel="Assign driver"
             allowClear
@@ -116,7 +129,7 @@ export default function ManageBuses() {
             value={String(assignForm.driverId || '')}
             onChange={(v) => setAssignForm((f) => ({ ...f, driverId: v }))}
           />
-          <label className="text-xs font-medium text-gray-500">Route</label>
+          <p className="field-label mb-0">Route</p>
           <ButtonSelect
             ariaLabel="Assign route"
             allowClear
@@ -125,9 +138,9 @@ export default function ManageBuses() {
             value={String(assignForm.routeId || '')}
             onChange={(v) => setAssignForm((f) => ({ ...f, routeId: v }))}
           />
-          <label className="text-xs font-medium text-gray-500">Capacity</label>
-          <input type="number" value={assignForm.capacity} onChange={(e) => setAssignForm({ ...assignForm, capacity: e.target.value })} className="input-field" />
-          <motion.button whileTap={{ scale: 0.97 }} onClick={handleAssignSave} className="btn-primary mt-2">Save Assignment</motion.button>
+          <label htmlFor="assign-capacity" className="field-label mb-0">Seats</label>
+          <input id="assign-capacity" type="number" inputMode="numeric" min="1" value={assignForm.capacity} onChange={(e) => setAssignForm({ ...assignForm, capacity: e.target.value })} className="input-field" />
+          <button type="button" onClick={handleAssignSave} className="btn-primary mt-2">Save changes</button>
         </div>
       </Modal>
     </div>

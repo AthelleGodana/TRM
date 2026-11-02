@@ -6,6 +6,7 @@ import SuccessMessage from '../../components/common/SuccessMessage';
 import StatusBadge from '../../components/common/StatusBadge';
 import ButtonSelect from '../../components/common/ButtonSelect';
 import { listAvailableRoutes, registerForRoute } from '../../services/student.service';
+import PageHeader from '../../components/layout/PageHeader';
 
 const TIER_VARIANT = { ADAMS: 'info', LAVINGTON: 'warning', TOWN: 'neutral' };
 
@@ -38,17 +39,19 @@ export default function RegisterRoute() {
     }
   };
 
-  if (loading) return <LoadingSpinner label="Loading routes..." />;
+  const header = <PageHeader title="My route" subtitle="Choose your route and the stops where you board." />;
+  if (loading) return <div className="page-narrow">{header}<LoadingSpinner label="Loading routes..." /></div>;
 
   return (
-    <div className="p-4 pb-24 sm:pb-8 max-w-md mx-auto">
+    <div className="page-narrow">
+      {header}
       <ErrorMessage message={error} />
       <SuccessMessage message={message} />
       <motion.form
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         onSubmit={handleSubmit} className="glass-card p-5 flex flex-col gap-3"
       >
-<label className="text-sm font-medium text-gray-600 dark:text-gray-300">Route</label>
+        <p className="field-label mb-0">Route</p>
         <ButtonSelect
           ariaLabel="Route"
           options={routes.map((r) => ({ value: String(r.id), label: r.name }))}
@@ -58,7 +61,7 @@ export default function RegisterRoute() {
 
         {selectedRoute && (
           <>
-            <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Arrival pickup point</label>
+            <p className="field-label mb-0">Morning pickup point</p>
             <ButtonSelect
               ariaLabel="Arrival pickup point"
               allowClear
@@ -68,7 +71,7 @@ export default function RegisterRoute() {
               onChange={setArrivePoint}
             />
 
-            <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Departure pickup point</label>
+            <p className="field-label mb-0">Evening drop-off point</p>
             <ButtonSelect
               ariaLabel="Departure pickup point"
               allowClear
@@ -83,14 +86,14 @@ export default function RegisterRoute() {
                 <StatusBadge key={p.id} variant={TIER_VARIANT[p.tier]}>{p.name} · {p.tier}</StatusBadge>
               ))}
             </div>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="field-hint">
               Your payment tier determines which pickup points you can select. Adams tier can use
               any point; Lavington tier can use Lavington and Town; Town tier can only use Town.
             </p>
           </>
         )}
 
-        <motion.button whileTap={{ scale: 0.97 }} type="submit" className="btn-primary mt-2">Register</motion.button>
+        <button type="submit" className="btn-primary mt-2">Save my route</button>
       </motion.form>
     </div>
   );

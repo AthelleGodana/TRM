@@ -3,6 +3,8 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import Drawer from '../../components/common/Drawer';
 import { listDrivers, removeDrivers } from '../../services/admin.service';
+import { Search } from 'lucide-react';
+import PageHeader from '../../components/layout/PageHeader';
 
 export default function ManageDrivers() {
   const [drivers, setDrivers] = useState([]);
@@ -32,34 +34,46 @@ export default function ManageDrivers() {
     }
   };
 
-  if (loading) return <LoadingSpinner label="Loading drivers..." />;
+  const header = (
+    <PageHeader title="Drivers" subtitle="Drivers join through People & Access with the Driver role." />
+  );
+  if (loading) return <div className="page max-w-3xl">{header}<LoadingSpinner label="Loading drivers..." /></div>;
 
   return (
-    <div className="p-4 pb-10 max-w-2xl mx-auto">
+    <div className="page max-w-3xl">
+      {header}
       <ErrorMessage message={error} />
-      <input placeholder="Search drivers..." value={search} onChange={(e) => setSearch(e.target.value)} className="input-field mb-4" />
+      <label htmlFor="driver-search" className="sr-only">Search drivers</label>
+      <div className="relative mb-4">
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
+        <input id="driver-search" type="search" placeholder="Search drivers" value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-10" />
+      </div>
 
-      <div className="glass-card divide-y divide-gray-100 dark:divide-white/5 mb-4">
+      <div className="glass-card divide-y divide-border mb-4">
         {filtered.map((d) => (
-          <div key={d.id} className="p-3.5 text-sm flex items-center gap-3">
-            <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggle(d.id)} />
-            <button onClick={() => setActive(d)} className="flex-1 text-left text-gray-700 dark:text-gray-200">
-              {d.user.firstName} {d.user.lastName} <span className="text-gray-400">({d.user.email})</span>
+          <div key={d.id} className="px-2 text-sm flex items-center gap-1">
+            <label className="flex items-center justify-center min-w-11 min-h-11">
+              <input type="checkbox" className="w-5 h-5 accent-primary-600" checked={selected.includes(d.id)} onChange={() => toggle(d.id)}
+                aria-label={`Select ${d.user.firstName} ${d.user.lastName}`} />
+            </label>
+            <button type="button" onClick={() => setActive(d)} className="flex-1 min-h-12 py-2 text-left rounded-lg px-2 hover:bg-muted transition-colors min-w-0">
+              <span className="block font-medium text-foreground truncate">{d.user.firstName} {d.user.lastName}</span>
+              <span className="block text-xs text-muted-foreground truncate">{d.user.email}</span>
             </button>
           </div>
         ))}
-        {filtered.length === 0 && <p className="p-4 text-sm text-gray-400">No drivers match.</p>}
+        {filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">No drivers match.</p>}
       </div>
 
-      <button onClick={handleRemove} disabled={selected.length === 0} className="btn-danger disabled:opacity-40">
-        Remove Selected ({selected.length})
+      <button type="button" onClick={handleRemove} disabled={selected.length === 0} className="btn-danger">
+        Remove selected ({selected.length})
       </button>
 
       <Drawer open={!!active} onClose={() => setActive(null)} title="Driver profile">
         {active && (
           <div className="flex flex-col gap-3 text-sm">
-            <div><span className="text-gray-400">Name</span><p className="font-medium text-gray-800 dark:text-gray-100">{active.user.firstName} {active.user.lastName}</p></div>
-            <div><span className="text-gray-400">Email</span><p>{active.user.email}</p></div>
+            <div><span className="text-muted-foreground">Name</span><p className="font-medium text-foreground">{active.user.firstName} {active.user.lastName}</p></div>
+            <div><span className="text-muted-foreground">Email</span><p className="text-foreground break-all">{active.user.email}</p></div>
           </div>
         )}
       </Drawer>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, X, Share, Plus } from 'lucide-react';
+import { BusFront, Download, Plus, Share, X } from 'lucide-react';
 
 // Detect iOS Safari (iPhone/iPad/iPod) — these don't support beforeinstallprompt.
 const isIOS = () =>
@@ -85,10 +85,10 @@ export default function InstallPrompt({ triggerRef }) {
           aria-live="polite"
           className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:bottom-4 sm:w-96 z-[500]"
         >
-          <div className="glass-card bg-white/95 dark:bg-surface-darkCard p-4 shadow-2xl border border-gray-200 dark:border-white/10">
+          <div className="glass-card p-4 shadow-xl">
             <div className="flex items-start gap-3">
-              <div className="w-11 h-11 min-w-11 rounded-2xl bg-gradient-to-br from-primary-600 to-accent-violet flex items-center justify-center text-2xl shadow-glow">
-                🚌
+              <div className="w-11 h-11 shrink-0 rounded-lg bg-primary-600 text-white flex items-center justify-center" aria-hidden="true">
+                <BusFront size={22} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-800 dark:text-gray-100 text-[15px]">Install Transtrack Kenya</p>
@@ -139,13 +139,13 @@ export default function InstallPrompt({ triggerRef }) {
             <button
               onClick={close}
               aria-label="Close"
-              className="absolute top-4 right-4 min-w-11 min-h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white"
+              className="absolute top-4 right-4 icon-btn"
             >
               <X size={20} />
             </button>
 
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-600 to-accent-violet flex items-center justify-center text-3xl shadow-glow mb-4">
-              🚌
+            <div className="w-12 h-12 rounded-lg bg-primary-600 text-white flex items-center justify-center mb-4" aria-hidden="true">
+              <BusFront size={24} />
             </div>
             <h2 id="ios-install-title" className="text-lg font-bold text-gray-800 dark:text-gray-100">
               Add Transtrack Kenya to your home screen

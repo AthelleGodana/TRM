@@ -8,6 +8,8 @@ import { useAuth } from '../../context/AuthContext';
 import {
   listStudents, removeStudents, listRoutes, createPupil, listParents, linkGuardian, unlinkGuardian,
 } from '../../services/admin.service';
+import { Plus, Search } from 'lucide-react';
+import PageHeader from '../../components/layout/PageHeader';
 
 const TIER_VARIANT = { ADAMS: 'info', LAVINGTON: 'warning', TOWN: 'neutral' };
 
@@ -83,21 +85,38 @@ export default function ManageStudents() {
     }
   };
 
-  if (loading) return <LoadingSpinner label={`Loading ${plural.toLowerCase()}...`} />;
+  const header = (
+    <PageHeader title={plural} subtitle={`Passenger records, their routes and payment tiers.`}>
+      {!adding && (
+        <button type="button" onClick={() => setAdding(true)} className="btn-secondary">
+          <Plus size={18} aria-hidden="true" /> Add {singular.toLowerCase()}
+        </button>
+      )}
+    </PageHeader>
+  );
+  if (loading) return <div className="page max-w-3xl">{header}<LoadingSpinner label={`Loading ${plural.toLowerCase()}...`} /></div>;
 
   return (
-    <div className="p-4 pb-10 max-w-2xl mx-auto">
+    <div className="page max-w-3xl">
+      {header}
       <ErrorMessage message={error} />
 
       {adding ? (
-        <form onSubmit={addPupil} className="glass-card p-4 mb-4 flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Add a {singular.toLowerCase()} without an account</p>
-          <div className="flex gap-2">
-            <input required placeholder="First name" className="input-field flex-1" value={pupil.firstName}
-              onChange={(e) => setPupil({ ...pupil, firstName: e.target.value })} />
-            <input required placeholder="Last name" className="input-field flex-1" value={pupil.lastName}
-              onChange={(e) => setPupil({ ...pupil, lastName: e.target.value })} />
+        <form onSubmit={addPupil} className="glass-card p-5 mb-5 flex flex-col gap-4">
+          <h2 className="section-title">Add a {singular.toLowerCase()} without an account</h2>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="pupil-first" className="field-label">First name</label>
+              <input id="pupil-first" required autoComplete="off" className="input-field" value={pupil.firstName}
+                onChange={(e) => setPupil({ ...pupil, firstName: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor="pupil-last" className="field-label">Last name</label>
+              <input id="pupil-last" required autoComplete="off" className="input-field" value={pupil.lastName}
+                onChange={(e) => setPupil({ ...pupil, lastName: e.target.value })} />
+            </div>
           </div>
+          <p className="field-label mb-0">Route</p>
           <ButtonSelect ariaLabel="Route" size="sm" allowClear clearLabel="No route yet"
             options={routes.map((r) => ({ value: String(r.id), label: r.name }))}
             value={pupil.routeId} onChange={(routeId) => setPupil({ ...pupil, routeId })} />
@@ -106,12 +125,15 @@ export default function ManageStudents() {
             <button type="button" className="btn-secondary flex-1" onClick={() => setAdding(false)}>Cancel</button>
           </div>
         </form>
-      ) : (
-        <button onClick={() => setAdding(true)} className="btn-secondary mb-4">+ Add {singular.toLowerCase()}</button>
-      )}
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <input placeholder={`Search ${plural.toLowerCase()}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="input-field flex-1 min-w-[180px]" />
+        <label htmlFor="passenger-search" className="sr-only">Search {plural.toLowerCase()}</label>
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
+          <input id="passenger-search" type="search" placeholder={`Search ${plural.toLowerCase()}`} value={search}
+            onChange={(e) => setSearch(e.target.value)} className="input-field pl-10" />
+        </div>
         <ButtonSelect
           ariaLabel="Filter by payment tier"
           size="sm"
@@ -127,51 +149,54 @@ export default function ManageStudents() {
         />
       </div>
 
-      <div className="glass-card divide-y divide-gray-100 dark:divide-white/5 mb-4">
+      <div className="glass-card divide-y divide-border mb-4">
         {filtered.map((s) => (
-          <div key={s.id} className="p-3.5 text-sm flex items-center gap-3">
-            <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} />
-            <button onClick={() => setActive(s)} className="flex-1 flex items-center justify-between text-left">
-              <span className="text-gray-700 dark:text-gray-200">{s.user.firstName} {s.user.lastName}</span>
+          <div key={s.id} className="px-2 text-sm flex items-center gap-1">
+            <label className="flex items-center justify-center min-w-11 min-h-11">
+              <input type="checkbox" className="w-5 h-5 accent-primary-600" checked={selected.includes(s.id)} onChange={() => toggle(s.id)}
+                aria-label={`Select ${s.user.firstName} ${s.user.lastName}`} />
+            </label>
+            <button type="button" onClick={() => setActive(s)} className="flex-1 min-h-12 py-2 px-2 rounded-lg flex items-center justify-between gap-2 text-left hover:bg-muted transition-colors">
+              <span className="font-medium text-foreground">{s.user.firstName} {s.user.lastName}</span>
               <StatusBadge variant={TIER_VARIANT[s.paymentTier]}>{s.paymentTier}</StatusBadge>
             </button>
           </div>
         ))}
-        {filtered.length === 0 && <p className="p-4 text-sm text-gray-400">No {plural.toLowerCase()} match.</p>}
+        {filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">No {plural.toLowerCase()} match.</p>}
       </div>
 
-      <button onClick={handleRemove} disabled={selected.length === 0} className="btn-danger disabled:opacity-40">
-        Remove Selected ({selected.length})
+      <button type="button" onClick={handleRemove} disabled={selected.length === 0} className="btn-danger">
+        Remove selected ({selected.length})
       </button>
 
       <Drawer open={!!active} onClose={() => setActive(null)} title={`${singular} profile`}>
         {active && (
           <div className="flex flex-col gap-3 text-sm">
-            <div><span className="text-gray-400">Name</span><p className="font-medium text-gray-800 dark:text-gray-100">{active.user.firstName} {active.user.lastName}</p></div>
-            <div><span className="text-gray-400">Email</span><p>{active.user.email}</p></div>
-            <div><span className="text-gray-400">Payment tier</span><p><StatusBadge variant={TIER_VARIANT[active.paymentTier]}>{active.paymentTier}</StatusBadge></p></div>
-            <div><span className="text-gray-400">Route</span><p>{active.route?.name || 'Not registered'}</p></div>
-            <div><span className="text-gray-400">Phone</span><p>{active.phone || '—'}</p></div>
-            <div><span className="text-gray-400">Email</span><p>{active.email || '—'}</p></div>
-            <div><span className="text-gray-400">Address</span><p>{active.address || '—'}</p></div>
+            <div><span className="text-muted-foreground">Name</span><p className="font-medium text-foreground">{active.user.firstName} {active.user.lastName}</p></div>
+            <div><span className="text-muted-foreground">Email</span><p>{active.user.email}</p></div>
+            <div><span className="text-muted-foreground">Payment tier</span><p><StatusBadge variant={TIER_VARIANT[active.paymentTier]}>{active.paymentTier}</StatusBadge></p></div>
+            <div><span className="text-muted-foreground">Route</span><p>{active.route?.name || 'Not registered'}</p></div>
+            <div><span className="text-muted-foreground">Phone</span><p>{active.phone || '—'}</p></div>
+            <div><span className="text-muted-foreground">Email</span><p>{active.email || '—'}</p></div>
+            <div><span className="text-muted-foreground">Address</span><p>{active.address || '—'}</p></div>
             {!active.hasAccount && (parents.length > 0 || active.guardians?.length > 0) && (
-              <div className="border-t border-gray-100 dark:border-white/5 pt-3">
-                <span className="text-gray-400">Parents</span>
+              <div className="border-t border-border pt-3">
+                <span className="text-muted-foreground">Parents</span>
                 <ul className="mt-1 flex flex-col gap-1">
                   {active.guardians.map((g) => (
                     <li key={g.user.id} className="flex items-center justify-between">
-                      <span>{parentName(g.user)} <span className="text-gray-400">{g.user.email}</span></span>
-                      <button className="text-xs text-rose-500" onClick={() => attempt(() => unlinkGuardian(active.id, g.user.id))}>Unlink</button>
+                      <span>{parentName(g.user)} <span className="text-muted-foreground">{g.user.email}</span></span>
+                      <button type="button" className="btn-ghost btn-sm text-danger" onClick={() => attempt(() => unlinkGuardian(active.id, g.user.id))}>Unlink</button>
                     </li>
                   ))}
-                  {active.guardians.length === 0 && <li className="text-gray-400">No parent linked yet.</li>}
+                  {active.guardians.length === 0 && <li className="text-muted-foreground">No parent linked yet.</li>}
                 </ul>
                 <div className="mt-2 flex flex-col gap-2">
                   <ButtonSelect ariaLabel="Parent to link" size="sm"
                     options={parents.filter((p) => !active.guardians.some((g) => g.user.id === p.id))
                       .map((p) => ({ value: String(p.id), label: parentName(p) }))}
                     value={linkTo} onChange={setLinkTo} />
-                  <button disabled={!linkTo} className="btn-primary"
+                  <button type="button" disabled={!linkTo} className="btn-primary"
                     onClick={() => attempt(() => linkGuardian(active.id, Number(linkTo))).then(() => setLinkTo(''))}>
                     Link parent
                   </button>

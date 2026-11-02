@@ -7,6 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import { getMyBus } from '../../services/student.service';
 import { useSocket } from '../../hooks/useSocket';
 import { useToast } from '../../context/ToastContext';
+import PageHeader from '../../components/layout/PageHeader';
 
 // Live view of a bus. Students load their own bus; parents pass loadBus to
 // follow a child's bus. The server only joins sockets it may see.
@@ -43,8 +44,8 @@ export default function TrackBus({ loadBus = getMyBus }) {
     });
     socket.on('bus:emergency', (payload) => {
       if (payload.busId === bus.id) {
-        setEmergency(payload.message || '🚨 Emergency reported by the driver.');
-        toast.emergency(payload.message || '🚨 Emergency reported by the driver.', { title: 'Emergency' });
+        setEmergency(payload.message || 'Emergency reported by the driver.');
+        toast.emergency(payload.message || 'Emergency reported by the driver.', { title: 'Emergency' });
       }
     });
     socket.on('bus:delay', (payload) => {
@@ -63,7 +64,8 @@ export default function TrackBus({ loadBus = getMyBus }) {
 
   if (loading) {
     return (
-      <div className="p-4 pb-24 sm:pb-8 max-w-lg mx-auto flex flex-col gap-3">
+      <div className="page max-w-3xl flex flex-col gap-3">
+        <PageHeader title="Live bus" />
         <SkeletonCard />
         <div className="skeleton h-[420px] w-full" />
       </div>
@@ -71,14 +73,15 @@ export default function TrackBus({ loadBus = getMyBus }) {
   }
 
   return (
-    <div className="p-4 pb-24 sm:pb-8 max-w-lg mx-auto">
+    <div className="page max-w-3xl">
+      <PageHeader title="Live bus" subtitle="The bus position updates while the driver is sharing location." />
       <ErrorMessage message={error} />
       {bus && (
         <>
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5 mb-3 flex items-center justify-between">
             <div>
-              <p className="font-bold text-lg text-gray-800 dark:text-gray-100">{bus.licensePlate}</p>
-              {bus.driver && <p className="text-sm text-gray-400">Driver: {bus.driver}</p>}
+              <p className="font-bold text-lg text-foreground tabular-nums">{bus.licensePlate}</p>
+              {bus.driver && <p className="text-sm text-muted-foreground">Driver: {bus.driver}</p>}
             </div>
             <StatusBadge variant={position ? 'success' : 'neutral'} dot>
               {position ? 'Live' : 'No signal'}

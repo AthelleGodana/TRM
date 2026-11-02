@@ -6,6 +6,7 @@ import SuccessMessage from '../../components/common/SuccessMessage';
 import StatusBadge from '../../components/common/StatusBadge';
 import ButtonSelect from '../../components/common/ButtonSelect';
 import { getPaymentHistory, initiatePayment } from '../../services/payment.service';
+import PageHeader from '../../components/layout/PageHeader';
 
 const TIERS = [
   { value: 'TOWN', label: 'Town — KES 1,500' },
@@ -45,37 +46,43 @@ export default function Payments() {
     }
   };
 
-  if (loading) return <LoadingSpinner label="Loading payments..." />;
+  const header = <PageHeader title="Payments" subtitle="Pay your transport fee with M-Pesa." />;
+  if (loading) return <div className="page-narrow">{header}<LoadingSpinner label="Loading payments..." /></div>;
 
   return (
-    <div className="p-4 pb-24 sm:pb-8 max-w-md mx-auto">
+    <div className="page-narrow">
+      {header}
       <ErrorMessage message={error} />
       <SuccessMessage message={message} />
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4 mb-4 flex items-center justify-between">
-        <span className="text-sm text-gray-500 dark:text-gray-400">Current tier</span>
+        <span className="text-sm text-muted-foreground">Current tier</span>
         <StatusBadge variant={currentTier === 'ADAMS' ? 'info' : currentTier === 'LAVINGTON' ? 'warning' : 'neutral'}>{currentTier}</StatusBadge>
       </motion.div>
 
       <form onSubmit={handlePay} className="glass-card p-5 flex flex-col gap-3 mb-4">
-<label className="text-sm font-medium text-gray-600 dark:text-gray-300">Select tier</label>
+        <p className="field-label mb-0">Tier</p>
         <ButtonSelect
           ariaLabel="Select payment tier"
           options={TIERS}
           value={tier}
           onChange={setTier}
         />
-        <label className="text-sm font-medium text-gray-600 dark:text-gray-300">M-Pesa phone number</label>
-        <input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="2547XXXXXXXX" required className="input-field" />
-        <motion.button whileTap={{ scale: 0.97 }} type="submit" className="btn-primary">Pay with M-Pesa</motion.button>
+        <div>
+          <label htmlFor="mpesa-phone" className="field-label">M-Pesa phone number</label>
+          <input id="mpesa-phone" type="tel" inputMode="tel" autoComplete="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}
+            placeholder="2547XXXXXXXX" required aria-describedby="mpesa-hint" className="input-field" />
+          <p id="mpesa-hint" className="field-hint">You will get a prompt on this phone to enter your M-Pesa PIN.</p>
+        </div>
+        <button type="submit" className="btn-primary">Pay with M-Pesa</button>
       </form>
 
-      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2 px-1">Payment history</h2>
-      <div className="glass-card divide-y divide-gray-100 dark:divide-white/5">
-        {payments.length === 0 && <p className="p-4 text-sm text-gray-400">No payments yet.</p>}
+      <h2 className="section-title mb-2">Payment history</h2>
+      <div className="glass-card divide-y divide-border">
+        {payments.length === 0 && <p className="p-4 text-sm text-muted-foreground">No payments yet.</p>}
         {payments.map((p) => (
           <div key={p.id} className="p-3.5 text-sm flex justify-between items-center">
-            <span className="font-medium text-gray-700 dark:text-gray-200">KES {p.amount}</span>
+            <span className="font-medium text-foreground tabular-nums">KES {p.amount}</span>
             <StatusBadge variant={STATUS_VARIANT[p.status]}>{p.status}</StatusBadge>
           </div>
         ))}

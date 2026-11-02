@@ -5,6 +5,8 @@ import ButtonSelect from '../../../components/common/ButtonSelect';
 import StatusBadge from '../../../components/common/StatusBadge';
 import { listBuses } from '../../../services/admin.service';
 import { createFuelCard, deleteFuelCard, listFuelCards, updateFuelCard } from '../../../services/fuel.service';
+import { Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const EMPTY = { label: '', provider: '', last4: '', busId: '', monthlyLimit: '' };
 const STATUS_VARIANT = { ACTIVE: 'success', BLOCKED: 'danger', EXPIRED: 'neutral' };
@@ -52,31 +54,44 @@ export default function FuelCards() {
       <ErrorMessage message={error} />
       {adding ? (
         <form onSubmit={submit} className="glass-card p-4 flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">New fuel card</p>
-          <div className="grid grid-cols-2 gap-2">
-            <input required placeholder="Label (e.g. Bus 4 card)" className="input-field col-span-2" value={form.label}
-              onChange={(e) => setForm({ ...form, label: e.target.value })} />
-            <input placeholder="Provider" className="input-field" value={form.provider}
-              onChange={(e) => setForm({ ...form, provider: e.target.value })} />
-            <input required inputMode="numeric" pattern="\d{4}" maxLength={4} placeholder="Last 4 digits" className="input-field"
-              value={form.last4} onChange={(e) => setForm({ ...form, last4: e.target.value.replace(/\D/g, '') })} />
-            <input type="number" min="1" placeholder="Monthly limit (KES)" className="input-field col-span-2" value={form.monthlyLimit}
-              onChange={(e) => setForm({ ...form, monthlyLimit: e.target.value })} />
+          <h2 className="section-title">New fuel card</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label htmlFor="card-label" className="field-label">Label</label>
+              <input id="card-label" required placeholder="e.g. Bus 4 card" className="input-field" value={form.label}
+                onChange={(e) => setForm({ ...form, label: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor="card-provider" className="field-label">Provider</label>
+              <input id="card-provider" className="input-field" value={form.provider}
+                onChange={(e) => setForm({ ...form, provider: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor="card-last4" className="field-label">Last 4 digits</label>
+              <input id="card-last4" required inputMode="numeric" pattern="\d{4}" maxLength={4} autoComplete="off" className="input-field"
+                value={form.last4} onChange={(e) => setForm({ ...form, last4: e.target.value.replace(/\D/g, '') })} />
+            </div>
+            <div className="col-span-2">
+              <label htmlFor="card-limit" className="field-label">Monthly limit (KES) <span className="font-normal text-muted-foreground">(optional)</span></label>
+              <input id="card-limit" type="number" inputMode="numeric" min="1" className="input-field" value={form.monthlyLimit}
+                onChange={(e) => setForm({ ...form, monthlyLimit: e.target.value })} />
+            </div>
           </div>
+          <p className="field-label mb-0">Assigned vehicle</p>
           <ButtonSelect ariaLabel="Assigned vehicle" size="sm" allowClear clearLabel="Any vehicle"
             options={buses.map((b) => ({ value: String(b.id), label: b.licensePlate }))}
             value={form.busId} onChange={(busId) => setForm({ ...form, busId })} />
-          <p className="text-xs text-gray-400">Never enter the full card number; only the last four digits are kept.</p>
+          <p className="field-hint mt-0">Never enter the full card number; only the last four digits are kept.</p>
           <div className="flex gap-2">
             <button type="submit" className="btn-primary flex-1">Save</button>
             <button type="button" onClick={() => setAdding(false)} className="btn-secondary flex-1">Cancel</button>
           </div>
         </form>
       ) : (
-        <button onClick={() => setAdding(true)} className="btn-primary">+ Add fuel card</button>
+        <button type="button" onClick={() => setAdding(true)} className="btn-primary self-start"><Plus size={18} aria-hidden="true" /> Add fuel card</button>
       )}
 
-      <div className="glass-card divide-y divide-gray-100 dark:divide-white/5">
+      <div className="glass-card divide-y divide-border">
         {cards.length === 0 && <p className="p-4 text-sm text-gray-400">No fuel cards yet.</p>}
         {cards.map((c) => (
           <div key={c.id} className="p-3.5 text-sm flex items-center justify-between gap-2">
@@ -88,11 +103,13 @@ export default function FuelCards() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <StatusBadge variant={STATUS_VARIANT[c.status]}>{c.status.toLowerCase()}</StatusBadge>
-              <button className="text-xs text-primary-600 dark:text-primary-400"
+              <button type="button" className="btn-ghost btn-sm text-link"
                 onClick={() => act(() => updateFuelCard(c.id, { status: c.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE' }))}>
                 {c.status === 'ACTIVE' ? 'Block' : 'Activate'}
               </button>
-              <button className="text-xs text-rose-500" onClick={() => act(() => deleteFuelCard(c.id))} aria-label={`Delete ${c.label}`}>✕</button>
+              <button type="button" className="icon-btn text-danger" onClick={() => act(() => deleteFuelCard(c.id))} aria-label={`Delete ${c.label}`}>
+                <Trash2 size={18} aria-hidden="true" />
+              </button>
             </div>
           </div>
         ))}

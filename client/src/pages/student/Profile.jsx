@@ -4,6 +4,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import SuccessMessage from '../../components/common/SuccessMessage';
 import { getStudentProfile, updateStudentProfile } from '../../services/student.service';
+import PageHeader from '../../components/layout/PageHeader';
 
 export default function Profile() {
   const [form, setForm] = useState({ address: '', phone: '', email: '' });
@@ -31,20 +32,28 @@ export default function Profile() {
     }
   };
 
-  if (loading) return <LoadingSpinner label="Loading profile..." />;
+  const header = <PageHeader title="Profile" subtitle="How the transport office can reach you." />;
+  if (loading) return <div className="page-narrow">{header}<LoadingSpinner label="Loading profile..." /></div>;
 
   return (
-    <div className="p-4 pb-24 sm:pb-8 max-w-md mx-auto">
+    <div className="page-narrow">
+      {header}
       <ErrorMessage message={error} />
       <SuccessMessage message={message} />
       <motion.form initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} onSubmit={handleSubmit} className="glass-card p-5 flex flex-col gap-3">
-        <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Address</label>
-        <input name="address" value={form.address} onChange={handleChange} className="input-field" />
-        <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Phone</label>
-        <input name="phone" value={form.phone} onChange={handleChange} className="input-field" />
-        <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Email</label>
-        <input name="email" type="email" value={form.email} onChange={handleChange} className="input-field" />
-        <motion.button whileTap={{ scale: 0.97 }} type="submit" className="btn-primary mt-2">Update Information</motion.button>
+        <div>
+          <label htmlFor="profile-address" className="field-label">Address</label>
+          <input id="profile-address" name="address" autoComplete="street-address" value={form.address} onChange={handleChange} className="input-field" />
+        </div>
+        <div>
+          <label htmlFor="profile-phone" className="field-label">Phone</label>
+          <input id="profile-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={handleChange} className="input-field" />
+        </div>
+        <div>
+          <label htmlFor="profile-email" className="field-label">Contact email</label>
+          <input id="profile-email" name="email" type="email" autoComplete="email" value={form.email} onChange={handleChange} className="input-field" />
+        </div>
+        <button type="submit" className="btn-primary mt-2">Save changes</button>
       </motion.form>
     </div>
   );
