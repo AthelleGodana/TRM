@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Routes, Route, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import Navbar from '../../components/common/Navbar';
+import { ChevronRight, MapPin } from 'lucide-react';
+import AppShell from '../../components/layout/AppShell';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import TrackBus from '../student/TrackBus';
@@ -21,30 +21,44 @@ function Children() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <LoadingSpinner label="Loading..." />;
+  const label = session.organization?.passengerLabel?.toLowerCase() || 'children';
 
   return (
-    <div className="p-4 pb-10 max-w-md mx-auto flex flex-col gap-3">
+    <div className="page-narrow">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">My children</h1>
+          <p className="page-subtitle">Choose a child to see their bus live.</p>
+        </div>
+      </div>
+      {loading && <LoadingSpinner label="Loading..." />}
       <ErrorMessage message={error} />
-      {children.length === 0 && !error && (
-        <div className="glass-card p-5 text-sm text-gray-500 dark:text-gray-400">
-          No {session.organization?.passengerLabel?.toLowerCase() || 'children'} are linked to your account yet.
-          Ask the transport office to link your child.
+      {!loading && children.length === 0 && !error && (
+        <div className="glass-card p-5 text-sm text-muted-foreground">
+          No {label} are linked to your account yet. Ask the transport office to link your child.
         </div>
       )}
-      {children.map((c, i) => (
-        <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-          <Link to={`track/${c.id}`} className="glass-card p-5 flex items-center justify-between hover:brightness-105 active:scale-[0.98] transition-all">
-            <div>
-              <p className="font-semibold text-gray-800 dark:text-gray-100">{c.user.firstName} {c.user.lastName}</p>
-              <p className="text-xs text-gray-400">
-                {c.route ? `${c.route.name}${c.arrivePickupPoint ? ` · ${c.arrivePickupPoint.name}` : ''}` : 'No route assigned yet'}
-              </p>
-            </div>
-            <span className="text-2xl">📍</span>
-          </Link>
-        </motion.div>
-      ))}
+      {children.length > 0 && (
+        <ul className="glass-card divide-y divide-border overflow-hidden">
+          {children.map((c) => (
+            <li key={c.id}>
+              <Link to={`track/${c.id}`} className="flex items-center gap-3 min-h-16 px-4 py-3 hover:bg-muted transition-colors">
+                <span className="w-10 h-10 shrink-0 rounded-lg bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300 flex items-center justify-center">
+                  <MapPin size={20} aria-hidden="true" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">{c.user.firstName} {c.user.lastName}</span>
+                  <span className="block text-xs text-muted-foreground truncate">
+                    {c.route ? `${c.route.name}${c.arrivePickupPoint ? ` · ${c.arrivePickupPoint.name}` : ''}` : 'No route assigned yet'}
+                  </span>
+                </span>
+                <span className="sr-only">Track bus</span>
+                <ChevronRight size={18} className="text-muted-foreground shrink-0" aria-hidden="true" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -58,12 +72,11 @@ function TrackChild() {
 // PARENT area: your children and live tracking of the bus on their route.
 export default function ParentDashboard({ onInstall }) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-surface-dark bg-mesh-light dark:bg-mesh-dark">
-      <Navbar title="My children" onInstall={onInstall} />
+    <AppShell onInstall={onInstall}>
       <Routes>
         <Route index element={<Children />} />
         <Route path="track/:id" element={<TrackChild />} />
       </Routes>
-    </div>
+    </AppShell>
   );
 }

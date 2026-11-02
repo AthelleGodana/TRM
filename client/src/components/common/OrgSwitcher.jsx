@@ -16,8 +16,13 @@ export default function OrgSwitcher() {
 
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   if (!session) return null;
@@ -38,7 +43,7 @@ export default function OrgSwitcher() {
   };
 
   if (!canSwitch) {
-    return <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{label} · {session.roleLabel}</span>;
+    return <span className="block text-xs text-muted-foreground truncate">{label} · {session.roleLabel}</span>;
   }
 
   return (
@@ -49,13 +54,14 @@ export default function OrgSwitcher() {
         disabled={busy}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 max-w-[14rem]"
+        aria-label={`Organisation: ${label}, ${session.roleLabel}. Switch organisation`}
+        className="flex items-center gap-1 -mx-1 px-1 py-1 rounded text-xs text-muted-foreground hover:text-foreground max-w-[14rem]"
       >
         <span className="truncate">{busy ? 'Switching...' : `${label} · ${session.roleLabel}`}</span>
-        <ChevronsUpDown size={14} className="shrink-0" />
+        <ChevronsUpDown size={14} className="shrink-0" aria-hidden="true" />
       </button>
       {open && (
-        <ul role="listbox" className="absolute left-0 mt-2 w-64 glass-card p-1 z-50 shadow-xl">
+        <ul role="listbox" aria-label="Your organisations" className="absolute left-0 mt-2 w-64 glass-card p-1 z-50 shadow-lg">
           {session.memberships.map((m) => (
             <li key={m.organizationId}>
               <button
@@ -63,13 +69,13 @@ export default function OrgSwitcher() {
                 role="option"
                 aria-selected={m.organizationId === current?.id}
                 onClick={() => choose(m.organizationId)}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-900/5 dark:hover:bg-white/10 flex items-center gap-2"
+                className="w-full text-left min-h-11 px-3 py-2 rounded-lg text-sm hover:bg-muted flex items-center gap-2"
               >
                 <span className="flex-1 min-w-0">
-                  <span className="block truncate text-gray-800 dark:text-gray-100">{m.name}</span>
-                  <span className="block text-xs text-gray-400">{m.roleLabel}</span>
+                  <span className="block truncate text-foreground">{m.name}</span>
+                  <span className="block text-xs text-muted-foreground">{m.roleLabel}</span>
                 </span>
-                {m.organizationId === current?.id && <Check size={16} className="text-primary-600" />}
+                {m.organizationId === current?.id && <Check size={16} className="text-link" aria-hidden="true" />}
               </button>
             </li>
           ))}

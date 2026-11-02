@@ -1,6 +1,4 @@
 
-import { motion } from 'framer-motion';
-
 /**
  * ButtonSelect — a drop-down-free alternative to <select>.
  * Renders a set of selectable pill buttons. One (or optional "none") can be selected.
@@ -29,8 +27,8 @@ export default function ButtonSelect({
 }) {
   const btnSize =
     size === 'sm'
-      ? 'px-2.5 py-1.5 text-xs'
-      : 'px-3.5 py-2 text-sm';
+      ? 'min-h-9 px-3 py-1.5 text-sm'
+      : 'min-h-11 px-3.5 py-2 text-sm';
 
   const container = columns || 'flex flex-wrap gap-2';
 
@@ -43,10 +41,10 @@ export default function ButtonSelect({
           aria-checked={value === ''}
           onClick={() => onChange('')}
           onFocus={onFocus}
-          className={`${btnSize} rounded-xl font-medium border transition-all duration-150 ${
+          className={`${btnSize} rounded-lg font-medium border transition-colors duration-150 ${
             value === ''
-              ? 'bg-primary-600 text-white border-primary-600 shadow-glow'
-              : 'bg-white/60 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-primary-400'
+              ? 'bg-primary-600 text-white border-primary-600'
+              : 'bg-card border-border text-muted-foreground hover:border-primary-400 hover:text-foreground'
           }`}
         >
           {clearLabel}
@@ -55,22 +53,21 @@ export default function ButtonSelect({
       {options.map((opt) => {
         const active = value === opt.value;
         return (
-          <motion.button
+          <button
             key={opt.value}
             type="button"
             role="radio"
             aria-checked={active}
-            whileTap={{ scale: 0.96 }}
             onClick={() => onChange(opt.value)}
             onFocus={onFocus}
-            className={`${btnSize} rounded-xl font-medium border transition-all duration-150 ${
+            className={`${btnSize} rounded-lg font-medium border transition-colors duration-150 ${
               active
-                ? 'bg-primary-600 text-white border-primary-600 shadow-glow'
-                : 'bg-white/60 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:border-primary-400'
+                ? 'bg-primary-600 text-white border-primary-600'
+                : 'bg-card border-border text-foreground hover:border-primary-400'
             }`}
           >
             {opt.label}
-          </motion.button>
+          </button>
         );
       })}
     </div>

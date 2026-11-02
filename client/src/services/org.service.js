@@ -14,6 +14,10 @@ export const listAccessRequests = () => api.get('/org/access-requests').then((r)
 export const approveAccessRequest = (id, role) => api.post(`/org/access-requests/${id}/approve`, { role }).then((r) => r.data);
 export const rejectAccessRequest = (id) => api.post(`/org/access-requests/${id}/reject`).then((r) => r.data);
 
+// Badge counts, and CSV import (the browser parses the file; rows only).
+export const getOrgSummary = () => api.get('/org/summary').then((r) => r.data);
+export const bulkInvite = (rows) => api.post('/org/invitations/bulk', { rows }).then((r) => r.data);
+
 // SUPER_ADMIN: platform-wide organisation management.
 export const listOrganizations = (status) =>
   api.get('/platform/organizations', { params: status ? { status } : {} }).then((r) => r.data);

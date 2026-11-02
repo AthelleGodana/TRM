@@ -1,16 +1,15 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { CircleAlert } from 'lucide-react';
 
+// Announced to screen readers as soon as it appears.
 export default function ErrorMessage({ message }) {
+  if (!message) return null;
   return (
-    <AnimatePresence>
-      {message && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-          className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-sm px-3.5 py-2.5 rounded-xl mb-3 overflow-hidden"
-        >
-          {message}
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div
+      role="alert"
+      className="flex items-start gap-2.5 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-800 dark:text-red-300 text-sm px-3.5 py-2.5 rounded-lg mb-3"
+    >
+      <CircleAlert size={18} className="shrink-0 mt-px" aria-hidden="true" />
+      <span>{message}</span>
+    </div>
   );
 }

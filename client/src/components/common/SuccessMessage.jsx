@@ -1,16 +1,14 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { CircleCheck } from 'lucide-react';
 
 export default function SuccessMessage({ message }) {
+  if (!message) return null;
   return (
-    <AnimatePresence>
-      {message && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-          className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm px-3.5 py-2.5 rounded-xl mb-3 overflow-hidden"
-        >
-          {message}
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div
+      role="status"
+      className="flex items-start gap-2.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-sm px-3.5 py-2.5 rounded-lg mb-3"
+    >
+      <CircleCheck size={18} className="shrink-0 mt-px" aria-hidden="true" />
+      <span>{message}</span>
+    </div>
   );
 }

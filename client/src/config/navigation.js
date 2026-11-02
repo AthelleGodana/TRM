@@ -1,20 +1,35 @@
+import {
+  Bus, CreditCard, Fuel, GraduationCap, House, IdCard, LayoutDashboard, Map, MapPin, Route, User, Users, Wallet,
+} from 'lucide-react';
+
 // Menus are driven by the user's role and the organisation's feature
 // flags, never by checking the organisation profile. Profile-specific
 // wording (e.g. "Pupils" vs "Students") comes from the session, which the
 // server derives from its single role/profile map.
 const STAFF = ['ORG_ADMIN', 'FLEET_MANAGER'];
 
+// Staff area pages, routed under /admin/<to>. `short` is the bottom-tab label.
 export const ADMIN_MENU = [
-  { to: 'routes', label: 'Routes & Stops', icon: '🗺️', gradient: 'from-primary-500 to-accent-cyan', roles: STAFF },
-  { to: 'buses', label: 'Fleet Management', icon: '🚌', gradient: 'from-accent-violet to-primary-600', roles: STAFF },
-  { to: 'drivers', label: 'Drivers', icon: '🧑‍✈️', gradient: 'from-emerald-500 to-accent-cyan', roles: STAFF },
+  { to: 'routes', label: 'Routes & Stops', short: 'Routes', icon: Map, roles: STAFF, description: 'Routes, stops and timings' },
+  { to: 'buses', label: 'Fleet', icon: Bus, roles: STAFF, description: 'Vehicles, capacity and status' },
+  { to: 'drivers', label: 'Drivers', icon: IdCard, roles: STAFF, description: 'Drivers and assignments' },
   {
-    to: 'students', label: (s) => s.organization?.passengerLabel || 'Passengers', icon: '🎓',
-    gradient: 'from-accent-amber to-rose-500', roles: STAFF,
+    to: 'students', label: (s) => s.organization?.passengerLabel || 'Passengers', icon: GraduationCap, roles: STAFF,
+    description: 'Passenger records and routes',
   },
-  { to: 'fuel', label: 'Fuel Hub', icon: '⛽', gradient: 'from-lime-500 to-emerald-600', roles: STAFF, feature: 'fuelHub' },
-  { to: 'members', label: 'People & Access', icon: '🪪', gradient: 'from-sky-500 to-primary-600', roles: ['ORG_ADMIN'] },
-  { to: 'billing', label: 'Billing & Revenue', icon: '💰', gradient: 'from-rose-500 to-accent-violet', roles: ['ORG_ADMIN'] },
+  { to: 'fuel', label: 'Fuel Hub', short: 'Fuel', icon: Fuel, roles: STAFF, feature: 'fuelHub', description: 'Fuel records, cards and insights' },
+  { to: 'members', label: 'People & Access', short: 'People', icon: Users, roles: ['ORG_ADMIN'], description: 'Members, invitations and requests' },
+  { to: 'billing', label: 'Billing & Revenue', short: 'Billing', icon: Wallet, roles: ['ORG_ADMIN'], description: 'Payments and revenue' },
+];
+
+export const ADMIN_HOME = { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true };
+
+export const STUDENT_MENU = [
+  { to: '/student', label: 'Home', icon: House, end: true },
+  { to: '/student/track', label: 'Track my bus', short: 'Track', icon: MapPin },
+  { to: '/student/register-route', label: 'My route', short: 'Route', icon: Route },
+  { to: '/student/payments', label: 'Payments', short: 'Pay', icon: CreditCard },
+  { to: '/student/profile', label: 'Profile', icon: User },
 ];
 
 export function canSee(item, session) {

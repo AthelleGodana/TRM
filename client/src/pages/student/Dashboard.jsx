@@ -1,49 +1,54 @@
 import { Link, Routes, Route } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import Navbar from '../../components/common/Navbar';
-import BottomNav from '../../components/common/BottomNav';
+import { ChevronRight } from 'lucide-react';
+import AppShell from '../../components/layout/AppShell';
+import { useAuth } from '../../context/AuthContext';
+import { STUDENT_MENU } from '../../config/navigation';
 import TrackBus from './TrackBus';
 import RegisterRoute from './RegisterRoute';
 import Payments from './Payments';
 import Profile from './Profile';
 
-const NAV_ITEMS = [
-  { to: '/student', label: 'Home', icon: '🏠', end: true },
-  { to: '/student/track', label: 'Track', icon: '📍' },
-  { to: '/student/register-route', label: 'Route', icon: '🗺️' },
-  { to: '/student/payments', label: 'Pay', icon: '💳' },
-  { to: '/student/profile', label: 'Profile', icon: '👤' },
-];
-
-const CARDS = [
-  { to: 'track', label: 'Track My Bus', icon: '📍', gradient: 'from-primary-500 to-accent-cyan' },
-  { to: 'register-route', label: 'Register Route', icon: '🗺️', gradient: 'from-accent-violet to-primary-600' },
-  { to: 'payments', label: 'Payments', icon: '💳', gradient: 'from-emerald-500 to-accent-cyan' },
-  { to: 'profile', label: 'My Profile', icon: '👤', gradient: 'from-accent-amber to-rose-500' },
-];
+const DESCRIPTIONS = {
+  '/student/track': 'See where your bus is right now',
+  '/student/register-route': 'Choose your route and pickup stop',
+  '/student/payments': 'Pay with M-Pesa and see receipts',
+  '/student/profile': 'Your details and contact information',
+};
 
 function Home() {
+  const { user } = useAuth();
+  const shortcuts = STUDENT_MENU.filter((item) => DESCRIPTIONS[item.to]);
   return (
-    <div className="p-4 pb-24 sm:pb-8 grid grid-cols-2 gap-3 max-w-md mx-auto">
-      {CARDS.map((c, i) => (
-        <motion.div key={c.to} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-          <Link
-            to={c.to}
-            className={`block bg-gradient-to-br ${c.gradient} text-white rounded-2xl p-5 text-center shadow-lg hover:brightness-110 active:scale-[0.97] transition-all`}
-          >
-            <div className="text-2xl mb-2">{c.icon}</div>
-            <div className="text-sm font-semibold">{c.label}</div>
-          </Link>
-        </motion.div>
-      ))}
+    <div className="page-narrow">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Hello{user?.firstName ? `, ${user.firstName}` : ''}</h1>
+          <p className="page-subtitle">What would you like to do?</p>
+        </div>
+      </div>
+      <ul className="glass-card divide-y divide-border overflow-hidden">
+        {shortcuts.map((item) => (
+          <li key={item.to}>
+            <Link to={item.to} className="flex items-center gap-3 min-h-16 px-4 py-3 hover:bg-muted transition-colors">
+              <span className="w-10 h-10 shrink-0 rounded-lg bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300 flex items-center justify-center">
+                <item.icon size={20} aria-hidden="true" />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold text-foreground">{item.label}</span>
+                <span className="block text-xs text-muted-foreground">{DESCRIPTIONS[item.to]}</span>
+              </span>
+              <ChevronRight size={18} className="text-muted-foreground shrink-0" aria-hidden="true" />
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
 export default function StudentDashboard({ onInstall }) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-surface-dark bg-mesh-light dark:bg-mesh-dark">
-      <Navbar title="Student Dashboard" onInstall={onInstall} />
+    <AppShell nav={STUDENT_MENU} onInstall={onInstall}>
       <Routes>
         <Route index element={<Home />} />
         <Route path="track" element={<TrackBus />} />
@@ -51,7 +56,6 @@ export default function StudentDashboard({ onInstall }) {
         <Route path="payments" element={<Payments />} />
         <Route path="profile" element={<Profile />} />
       </Routes>
-      <BottomNav items={NAV_ITEMS} />
-    </div>
+    </AppShell>
   );
 }
