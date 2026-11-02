@@ -1,15 +1,19 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import prisma from '../config/db.js';
-import { env } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { signAccessToken } from '../services/token.service.js';
 
-const PUBLIC_ROLES = ['student', 'driver'];
+const PUBLIC_ROLES = { student: 'STUDENT', driver: 'DRIVER' };
 
-function signToken(user) {
-  return jwt.sign({ id: user.id, role: user.role }, env.jwtSecret, {
-    expiresIn: env.jwtExpiresIn,
+// Picks the organisation a user lands in: the most recently used active
+// membership, falling back to the oldest.
+async function pickMembership(userId) {
+  const memberships = await prisma.membership.findMany({
+    where: { userId, organization: { status: 'ACTIVE' } },
+    include: { organization: true },
+    orderBy: [{ lastUsedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
   });
+  return memberships[0] || null;
 }
 
 export const register = asyncHandler(async (req, res) => {
@@ -24,8 +28,14 @@ export const register = asyncHandler(async (req, res) => {
   if (!firstName || !lastName) {
     return res.status(400).json({ error: 'First and last name are required.' });
   }
-  if (!PUBLIC_ROLES.includes(role)) {
+  if (!PUBLIC_ROLES[role]) {
     return res.status(400).json({ error: 'Invalid role selected.' });
+  }
+
+  // Legacy self-registration only exists for the migrated default organisation.
+  const org = await prisma.organization.findUnique({ where: { slug: 'default' } });
+  if (!org) {
+    return res.status(400).json({ error: 'Self-registration is not available. Ask your organisation for an invitation.' });
   }
 
   const existing = await prisma.user.findUnique({ where: { username } });
@@ -36,13 +46,16 @@ export const register = asyncHandler(async (req, res) => {
   const hashed = await bcrypt.hash(password, 10);
 
   const user = await prisma.user.create({
-    data: { username, password: hashed, firstName, lastName, role },
+    data: {
+      username, password: hashed, firstName, lastName,
+      memberships: { create: { organizationId: org.id, role: PUBLIC_ROLES[role] } },
+    },
   });
 
   if (role === 'student') {
-    await prisma.student.create({ data: { userId: user.id } });
+    await prisma.student.create({ data: { userId: user.id, organizationId: org.id } });
   } else if (role === 'driver') {
-    await prisma.driver.create({ data: { userId: user.id } });
+    await prisma.driver.create({ data: { userId: user.id, organizationId: org.id } });
   }
 
   res.status(201).json({ message: 'Registration successful. Please log in.' });
@@ -56,11 +69,18 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   const user = await prisma.user.findUnique({ where: { username } });
-  if (!user || !(await bcrypt.compare(password, user.password))) {
+  if (!user?.password || !(await bcrypt.compare(password, user.password))) {
     return res.status(401).json({ error: 'Invalid username or password.' });
   }
 
-  const token = signToken(user);
+  const membership = await pickMembership(user.id);
+  if (!membership) {
+    return res.status(403).json({ error: 'Your account is not linked to an active organisation.' });
+  }
+
+  const token = signAccessToken({
+    userId: user.id, organizationId: membership.organizationId, role: membership.role,
+  });
 
   res.json({
     token,
@@ -69,7 +89,8 @@ export const login = asyncHandler(async (req, res) => {
       username: user.username,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role,
+      role: membership.role,
+      organizationId: membership.organizationId,
     },
   });
 });
@@ -77,8 +98,8 @@ export const login = asyncHandler(async (req, res) => {
 export const me = asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { id: true, username: true, firstName: true, lastName: true, role: true },
+    select: { id: true, username: true, firstName: true, lastName: true },
   });
   if (!user) return res.status(404).json({ error: 'User not found.' });
-  res.json({ user });
+  res.json({ user: { ...user, role: req.user.role, organizationId: req.user.organizationId } });
 });

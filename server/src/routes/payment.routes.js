@@ -7,7 +7,7 @@ const router = Router();
 // Daraja calls this server-to-server; it is not authenticated with a JWT.
 router.post('/mpesa/callback', mpesaCallback);
 
-router.use(requireAuth, requireRole('student'));
+router.use(requireAuth, requireRole('STUDENT'));
 router.post('/initiate', initiatePayment);
 router.get('/history', getMyPayments);
 

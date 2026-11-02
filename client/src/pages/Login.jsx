@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import ErrorMessage from '../components/common/ErrorMessage';
 import ThemeToggle from '../components/common/ThemeToggle';
 import ButtonSelect from '../components/common/ButtonSelect';
+import { homeForRole } from '../config/roles';
 
 const ROLE_HINTS = {
   student: 'student',
@@ -32,12 +33,13 @@ const handleSubmit = async (e) => {
     setSubmitting(true);
     try {
       const user = await login(form.username, form.password);
-      if (user.role !== role) {
+      const home = homeForRole(user.role);
+      if (home !== `/${role}`) {
         setSubmitting(false);
-        setError(`This account is registered as a ${user.role}. Please select the correct role and try again.`);
+        setError('This account is registered with a different role. Please select the correct role and try again.');
         return;
       }
-      navigate(`/${user.role}`);
+      navigate(home);
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
     } finally {

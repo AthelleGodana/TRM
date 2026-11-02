@@ -2,30 +2,29 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import prisma from '../src/config/db.js';
-import { tokenFor, truncateAll } from './helpers.js';
+import { bearer, createMember, createOrg, truncateAll } from './helpers.js';
 
-// Baseline behaviour of the existing API before multi-tenancy, so later
-// steps can detect regressions in core flows.
+// Core flows of the existing API, kept as regression coverage while the
+// platform becomes multi-tenant.
 const app = createApp();
-let admin, driverUser, studentUser, route;
+let admin, driver, student, route;
 
 beforeAll(async () => {
   await truncateAll();
-  admin = await prisma.user.create({
-    data: { username: 'admin', password: 'x', firstName: 'A', lastName: 'Admin', role: 'admin' },
-  });
-  driverUser = await prisma.user.create({
-    data: { username: 'driver1', password: 'x', firstName: 'D', lastName: 'Driver', role: 'driver' },
-  });
-  const driver = await prisma.driver.create({ data: { userId: driverUser.id } });
-  studentUser = await prisma.user.create({
-    data: { username: 'student1', password: 'x', firstName: 'S', lastName: 'Student', role: 'student' },
-  });
-  await prisma.student.create({ data: { userId: studentUser.id } });
+  const org = await createOrg();
+  admin = await createMember(org, 'ORG_ADMIN');
+  driver = await createMember(org, 'DRIVER');
+  student = await createMember(org, 'STUDENT');
   route = await prisma.route.create({
-    data: { name: 'Route A', pickupPoints: { create: [{ name: 'Town', tier: 'TOWN' }] } },
+    data: {
+      name: 'Route A',
+      organizationId: org.id,
+      pickupPoints: { create: [{ name: 'Town', tier: 'TOWN', organizationId: org.id }] },
+    },
   });
-  await prisma.bus.create({ data: { licensePlate: 'KAA 001A', driverId: driver.id, routeId: route.id } });
+  await prisma.bus.create({
+    data: { licensePlate: 'KAA 001A', driverId: driver.profile.id, routeId: route.id, organizationId: org.id },
+  });
 });
 
 afterAll(async () => {
@@ -38,27 +37,22 @@ describe('baseline API', () => {
     expect(res.status).toBe(200);
   });
 
-  it('admin routes require auth and the admin role', async () => {
+  it('admin routes require auth and a staff role', async () => {
     expect((await request(app).get('/api/admin/buses')).status).toBe(401);
-    const res = await request(app)
-      .get('/api/admin/buses')
-      .set('Authorization', `Bearer ${tokenFor(studentUser)}`);
+    const res = await request(app).get('/api/admin/buses').set('Authorization', bearer(student));
     expect(res.status).toBe(403);
   });
 
   it('admin can list buses and routes', async () => {
-    const auth = `Bearer ${tokenFor(admin)}`;
-    const buses = await request(app).get('/api/admin/buses').set('Authorization', auth);
+    const buses = await request(app).get('/api/admin/buses').set('Authorization', bearer(admin));
     expect(buses.status).toBe(200);
     expect(buses.body.buses).toHaveLength(1);
-    const routes = await request(app).get('/api/admin/routes').set('Authorization', auth);
+    const routes = await request(app).get('/api/admin/routes').set('Authorization', bearer(admin));
     expect(routes.body.routes[0].pickupPoints).toHaveLength(1);
   });
 
   it('driver sees their route', async () => {
-    const res = await request(app)
-      .get('/api/drivers/my-route')
-      .set('Authorization', `Bearer ${tokenFor(driverUser)}`);
+    const res = await request(app).get('/api/drivers/my-route').set('Authorization', bearer(driver));
     expect(res.status).toBe(200);
     expect(res.body.bus.licensePlate).toBe('KAA 001A');
   });
@@ -67,12 +61,10 @@ describe('baseline API', () => {
     const point = await prisma.pickupPoint.findFirst();
     const res = await request(app)
       .post('/api/students/register-route')
-      .set('Authorization', `Bearer ${tokenFor(studentUser)}`)
+      .set('Authorization', bearer(student))
       .send({ routeId: route.id, arrivePickupPointId: point.id });
     expect(res.status).toBe(200);
-    const bus = await request(app)
-      .get('/api/students/my-bus')
-      .set('Authorization', `Bearer ${tokenFor(studentUser)}`);
+    const bus = await request(app).get('/api/students/my-bus').set('Authorization', bearer(student));
     expect(bus.body.bus.licensePlate).toBe('KAA 001A');
   });
 });

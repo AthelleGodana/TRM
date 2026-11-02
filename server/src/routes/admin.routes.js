@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { STAFF_ROLES } from '../config/roles.js';
 import {
   createRoute, listRoutesAdmin, updateBusAssignment, createBus, listBuses,
   listDrivers, listStudents, removeStudents, removeDrivers, listAllPayments,
@@ -15,10 +16,11 @@ import {
 
 const router = Router();
 
-// Every route below requires a valid JWT and the 'admin' role.
-// This is the single enforcement point for admin RBAC — no admin
-// controller function is reachable without passing both checks.
-router.use(requireAuth, requireRole('admin'));
+// Every route below requires a valid access token and a staff role
+// (ORG_ADMIN or FLEET_MANAGER). Routes touching money or removing people
+// are further restricted to ORG_ADMIN.
+const orgAdminOnly = requireRole('ORG_ADMIN');
+router.use(requireAuth, requireRole(...STAFF_ROLES));
 
 router.post('/routes', createRoute);
 router.get('/routes', listRoutesAdmin);
@@ -29,13 +31,13 @@ router.put('/buses/status', setBusStatus);
 router.put('/buses/:id', updateBusAssignment);
 
 router.get('/drivers', listDrivers);
-router.post('/drivers/remove', removeDrivers);
+router.post('/drivers/remove', orgAdminOnly, removeDrivers);
 
 router.get('/students', listStudents);
-router.post('/students/remove', removeStudents);
+router.post('/students/remove', orgAdminOnly, removeStudents);
 
-router.get('/payments', listAllPayments);
-router.get('/billing/overview', getBillingOverview);
+router.get('/payments', orgAdminOnly, listAllPayments);
+router.get('/billing/overview', orgAdminOnly, getBillingOverview);
 router.get('/fleet/overview', getFleetOverview);
 
 // Slot management

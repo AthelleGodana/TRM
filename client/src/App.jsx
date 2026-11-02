@@ -44,7 +44,7 @@ return (
               <Route
                 path="/student/*"
                 element={
-                  <ProtectedRoute role="student">
+                  <ProtectedRoute roles={['STUDENT']}>
                     <StudentDashboard onInstall={handleInstallRequest} />
                   </ProtectedRoute>
                 }
@@ -52,7 +52,7 @@ return (
               <Route
                 path="/driver/*"
                 element={
-                  <ProtectedRoute role="driver">
+                  <ProtectedRoute roles={['DRIVER']}>
                     <DriverDashboard onInstall={handleInstallRequest} />
                   </ProtectedRoute>
                 }
@@ -60,7 +60,7 @@ return (
               <Route
                 path="/admin/*"
                 element={
-                  <ProtectedRoute role="admin">
+                  <ProtectedRoute roles={['ORG_ADMIN', 'FLEET_MANAGER']}>
                     <AdminDashboard onInstall={handleInstallRequest} />
                   </ProtectedRoute>
                 }

@@ -1,5 +1,6 @@
 import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isStaff } from '../config/roles.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 async function getBusForDriver(userId) {
@@ -8,14 +9,14 @@ async function getBusForDriver(userId) {
   return prisma.bus.findFirst({ where: { driverId: driver.id } });
 }
 
-// ── Bus status toggle (drivers + admins) ──────────────────────────────
+// ── Bus status toggle (drivers + staff) ──────────────────────────────
 export const setBusStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const valid = ['OPERATIONAL', 'IN_SERVICE', 'OUT_OF_FUEL'];
   if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
 
   let bus;
-  if (req.user.role === 'admin') {
+  if (isStaff(req.user.role)) {
     const { busId } = req.body;
     bus = await prisma.bus.findUnique({ where: { id: Number(busId) } });
     if (!bus) return res.status(404).json({ error: 'Bus not found.' });
@@ -37,7 +38,7 @@ export const addVehicleLog = asyncHandler(async (req, res) => {
   }
 
   let busId;
-  if (req.user.role === 'admin') {
+  if (isStaff(req.user.role)) {
     busId = Number(req.body.busId);
   } else {
     const bus = await getBusForDriver(req.user.id);
@@ -58,10 +59,10 @@ export const addVehicleLog = asyncHandler(async (req, res) => {
   res.status(201).json({ log });
 });
 
-// ── List vehicle logs for a bus (drivers: own bus; admins: any) ───────
+// ── List vehicle logs for a bus (drivers: own bus; staff: any) ───────
 export const listVehicleLogs = asyncHandler(async (req, res) => {
   let busId;
-  if (req.user.role === 'admin') {
+  if (isStaff(req.user.role)) {
     busId = Number(req.params.busId || req.query.busId);
   } else {
     const bus = await getBusForDriver(req.user.id);
@@ -92,7 +93,7 @@ const SAFETY_ITEMS = [
 
 export const getSafetyChecklist = asyncHandler(async (req, res) => {
   let busId;
-  if (req.user.role === 'admin') {
+  if (isStaff(req.user.role)) {
     busId = Number(req.params.busId || req.query.busId);
   } else {
     const bus = await getBusForDriver(req.user.id);
@@ -118,7 +119,7 @@ export const toggleSafetyCheck = asyncHandler(async (req, res) => {
   if (!SAFETY_ITEMS.includes(item)) return res.status(400).json({ error: 'Unknown checklist item.' });
 
   let busId;
-  if (req.user.role === 'admin') {
+  if (isStaff(req.user.role)) {
     busId = Number(req.body.busId);
   } else {
     const bus = await getBusForDriver(req.user.id);

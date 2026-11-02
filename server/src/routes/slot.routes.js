@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { STAFF_ROLES } from '../config/roles.js';
 import {
   createSlot,
   listSlotsAdmin,
@@ -11,11 +12,11 @@ import {
 const router = Router();
 router.use(requireAuth);
 
-router.get('/my-slots', listSlotsForStudent);
-router.post('/book', bookSlot);
-router.post('/cancel', cancelSlot);
+router.get('/my-slots', requireRole('STUDENT'), listSlotsForStudent);
+router.post('/book', requireRole('STUDENT'), bookSlot);
+router.post('/cancel', requireRole('STUDENT'), cancelSlot);
 
-router.post('/', createSlot);
-router.get('/', listSlotsAdmin);
+router.post('/', requireRole(...STAFF_ROLES), createSlot);
+router.get('/', requireRole(...STAFF_ROLES), listSlotsAdmin);
 
 export default router;

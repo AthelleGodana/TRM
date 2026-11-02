@@ -4,7 +4,7 @@ import { getMyRoute } from '../controllers/driver.controller.js';
 import { getRoster, setRosterStatus } from '../controllers/vehicle.controller.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('driver'));
+router.use(requireAuth, requireRole('DRIVER'));
 
 router.get('/my-route', getMyRoute);
 router.get('/roster', getRoster);

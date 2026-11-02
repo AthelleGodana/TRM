@@ -5,7 +5,7 @@ import {
 } from '../controllers/student.controller.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('student'));
+router.use(requireAuth, requireRole('STUDENT'));
 
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);

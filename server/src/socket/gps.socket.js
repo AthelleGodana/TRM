@@ -1,6 +1,5 @@
-import jwt from 'jsonwebtoken';
+import { verifyAccessToken } from '../services/token.service.js';
 import prisma from '../config/db.js';
-import { env } from '../config/env.js';
 
 // Registers all GPS-related Socket.io event handlers.
 //
@@ -15,7 +14,7 @@ export function registerGpsSocket(io) {
     const token = socket.handshake.auth?.token;
     if (!token) return next(); // allow anonymous connect; specific events still require auth below
     try {
-      socket.user = jwt.verify(token, env.jwtSecret);
+      socket.user = verifyAccessToken(token);
     } catch {
       // invalid token — leave socket.user undefined, events will reject below
     }
@@ -24,7 +23,7 @@ export function registerGpsSocket(io) {
 
   io.on('connection', (socket) => {
     socket.on('driver:join', ({ busId }) => {
-      if (!socket.user || socket.user.role !== 'driver') return;
+      if (!socket.user || socket.user.role !== 'DRIVER') return;
       socket.join(`bus:${busId}`);
       socket.data.busId = busId;
     });
@@ -34,7 +33,7 @@ export function registerGpsSocket(io) {
     });
 
     socket.on('driver:location', async ({ busId, lat, lng }) => {
-      if (!socket.user || socket.user.role !== 'driver') return;
+      if (!socket.user || socket.user.role !== 'DRIVER') return;
       if (typeof lat !== 'number' || typeof lng !== 'number') return;
 
       try {
@@ -54,7 +53,7 @@ export function registerGpsSocket(io) {
     });
 
 socket.on('driver:emergency', ({ busId, message }) => {
-      if (!socket.user || socket.user.role !== 'driver') return;
+      if (!socket.user || socket.user.role !== 'DRIVER') return;
       io.to(`bus:${busId}`).emit('bus:emergency', {
         busId: Number(busId),
         message: message || '🚨 Emergency reported by the driver.',
@@ -70,7 +69,7 @@ socket.on('driver:emergency', ({ busId, message }) => {
     });
 
     socket.on('driver:delay', ({ busId, minutes }) => {
-      if (!socket.user || socket.user.role !== 'driver') return;
+      if (!socket.user || socket.user.role !== 'DRIVER') return;
       io.to(`bus:${busId}`).emit('bus:delay', {
         busId: Number(busId),
         minutes: Number(minutes) || 5,

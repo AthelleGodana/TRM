@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, LogOut, Download } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import { homeForRole } from '../../config/roles';
 
 export default function Navbar({ title, onInstall }) {
   const { user, logout } = useAuth();
@@ -17,7 +18,7 @@ export default function Navbar({ title, onInstall }) {
 
   
   // Determine the role home path for the back button fallback.
-  const homePath = user ? `/${user.role}` : '/';
+  const homePath = user ? homeForRole(user.role) : '/';
 
   const handleBack = () => {
     // If there's browser history, go back; otherwise go to the role home.

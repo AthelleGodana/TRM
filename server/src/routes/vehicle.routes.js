@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { STAFF_ROLES } from '../config/roles.js';
 import {
   setBusStatus,
   addVehicleLog,
@@ -9,7 +10,7 @@ import {
 } from '../controllers/vehicle.controller.js';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireRole('DRIVER', ...STAFF_ROLES));
 
 router.put('/status', setBusStatus);
 router.post('/logs', addVehicleLog);
