@@ -1,4 +1,4 @@
-import prisma from '../config/db.js';
+import prisma, { tenantTransaction } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 // ── Admin: create a pickup time slot with a capacity cap ──────────────
@@ -33,7 +33,7 @@ export const listSlotsAdmin = asyncHandler(async (req, res) => {
 
 // ── Student-facing: list active slots for the student's route ─────────
 export const listSlotsForStudent = asyncHandler(async (req, res) => {
-  const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+  const student = await prisma.student.findFirst({ where: { userId: req.user.id } });
   if (!student || !student.routeId) {
     return res.status(404).json({ error: 'Register for a route first to book a pickup slot.' });
   }
@@ -73,43 +73,43 @@ function startOfToday() {
 // ── Student: book (or swap) a pickup slot. Optimistic on the client. ──
 export const bookSlot = asyncHandler(async (req, res) => {
   const { slotId } = req.body;
-  const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+  const student = await prisma.student.findFirst({ where: { userId: req.user.id } });
   if (!student) return res.status(404).json({ error: 'Student profile not found.' });
 
-  const slot = await prisma.pickupSlot.findUnique({ where: { id: Number(slotId) } });
+  const slot = await prisma.pickupSlot.findUnique({ where: { id: Number(slotId) || 0 } });
   if (!slot || !slot.isActive) return res.status(404).json({ error: 'Slot not found.' });
 
   if (slot.routeId !== student.routeId) {
     return res.status(400).json({ error: 'This slot is not on your route.' });
   }
-  if (slot.bookedCount >= slot.capacity) {
-    return res.status(409).json({ error: 'This slot is full. Please choose another.' });
-  }
 
-  // Release any prior booking for today.
-  const existing = await prisma.tripRoster.findFirst({
-    where: { studentId: student.id, slotId: { not: null }, tripDate: { gte: startOfToday() } },
-  });
-  if (existing) {
-    await prisma.pickupSlot.update({
-      where: { id: existing.slotId },
-      data: { bookedCount: { decrement: 1 } },
+  // One transaction: release any prior booking for today, then claim a seat
+  // only if one is still free, so concurrent bookings cannot overfill a slot.
+  const roster = await tenantTransaction(async (tx) => {
+    const existing = await tx.tripRoster.findFirst({
+      where: { studentId: student.id, slotId: { not: null }, tripDate: { gte: startOfToday() } },
     });
-    await prisma.tripRoster.delete({ where: { id: existing.id } });
-  }
+    if (existing) {
+      await tx.pickupSlot.update({
+        where: { id: existing.slotId },
+        data: { bookedCount: { decrement: 1 } },
+      });
+      await tx.tripRoster.delete({ where: { id: existing.id } });
+    }
 
-  const roster = await prisma.tripRoster.create({
-    data: {
-      busId: slot.busId,
-      slotId: slot.id,
-      studentId: student.id,
-      status: 'PENDING',
-    },
-  });
+    const claimed = await tx.pickupSlot.updateMany({
+      where: { id: slot.id, bookedCount: { lt: slot.capacity } },
+      data: { bookedCount: { increment: 1 } },
+    });
+    if (claimed.count === 0) {
+      const err = new Error('This slot is full. Please choose another.');
+      err.status = 409;
+      throw err;
+    }
 
-  await prisma.pickupSlot.update({
-    where: { id: slot.id },
-    data: { bookedCount: { increment: 1 } },
+    return tx.tripRoster.create({
+      data: { busId: slot.busId, slotId: slot.id, studentId: student.id, status: 'PENDING' },
+    });
   });
 
   res.status(201).json({ roster, slotId: slot.id, message: 'Slot booked successfully.' });
@@ -117,7 +117,7 @@ export const bookSlot = asyncHandler(async (req, res) => {
 
 // ── Student: cancel current slot booking ──────────────────────────────
 export const cancelSlot = asyncHandler(async (req, res) => {
-  const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+  const student = await prisma.student.findFirst({ where: { userId: req.user.id } });
   if (!student) return res.status(404).json({ error: 'Student profile not found.' });
 
   const existing = await prisma.tripRoster.findFirst({
@@ -125,11 +125,13 @@ export const cancelSlot = asyncHandler(async (req, res) => {
   });
   if (!existing) return res.status(400).json({ error: 'No active booking to cancel.' });
 
-  await prisma.pickupSlot.update({
-    where: { id: existing.slotId },
-    data: { bookedCount: { decrement: 1 } },
+  await tenantTransaction(async (tx) => {
+    await tx.pickupSlot.update({
+      where: { id: existing.slotId },
+      data: { bookedCount: { decrement: 1 } },
+    });
+    await tx.tripRoster.delete({ where: { id: existing.id } });
   });
-  await prisma.tripRoster.delete({ where: { id: existing.id } });
 
   res.json({ message: 'Slot booking cancelled.' });
 });

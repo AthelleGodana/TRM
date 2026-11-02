@@ -1,4 +1,5 @@
-import prisma from '../config/db.js';
+import { systemPrisma as prisma } from '../config/db.js';
+import { runWithContext } from '../context/requestContext.js';
 import { verifyAccessToken } from '../services/token.service.js';
 import { isRoleAllowed, SUPER_ADMIN } from '../config/roles.js';
 
@@ -65,7 +66,12 @@ export async function requireAuth(req, res, next) {
     }
     req.user = session.user;
     req.org = session.org || null;
-    next();
+    // Everything downstream (tenant Prisma client included) reads the
+    // organisation from this context.
+    runWithContext(
+      { userId: session.user.id, organizationId: session.user.organizationId, role: session.user.role },
+      next
+    );
   } catch (err) {
     next(err);
   }

@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { findViewableBus } from '../services/busAccess.js';
 
 const router = Router();
 
@@ -10,8 +11,11 @@ router.get(
   '/history/:busId',
   requireAuth,
   asyncHandler(async (req, res) => {
+    const bus = await findViewableBus(req.user, req.params.busId);
+    if (!bus) return res.status(404).json({ error: 'Bus not found.' });
+
     const logs = await prisma.gpsLog.findMany({
-      where: { busId: Number(req.params.busId) },
+      where: { busId: bus.id },
       orderBy: { recordedAt: 'desc' },
       take: 50,
     });

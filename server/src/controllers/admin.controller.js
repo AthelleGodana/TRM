@@ -1,5 +1,4 @@
-import bcrypt from 'bcryptjs';
-import prisma from '../config/db.js';
+import prisma, { tenantTransaction } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 // ── Routes & pickup points ──────────────────────────────────────────────
@@ -109,12 +108,17 @@ export const removeStudents = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'studentIds must be a non-empty array.' });
   }
 
-  const students = await prisma.student.findMany({
-    where: { id: { in: studentIds.map(Number) } },
-    select: { userId: true },
+  // Removes the people from this organisation only. Their Google identity
+  // and any memberships in other organisations are left untouched.
+  await tenantTransaction(async (tx) => {
+    const students = await tx.student.findMany({
+      where: { id: { in: studentIds.map(Number) } },
+      select: { id: true, userId: true },
+    });
+    const userIds = students.map((s) => s.userId).filter(Boolean);
+    await tx.student.deleteMany({ where: { id: { in: students.map((s) => s.id) } } });
+    await tx.membership.deleteMany({ where: { userId: { in: userIds }, role: 'STUDENT' } });
   });
-
-  await prisma.user.deleteMany({ where: { id: { in: students.map((s) => s.userId) } } });
 
   res.json({ message: 'Selected students removed.' });
 });
@@ -125,12 +129,14 @@ export const removeDrivers = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'driverIds must be a non-empty array.' });
   }
 
-  const drivers = await prisma.driver.findMany({
-    where: { id: { in: driverIds.map(Number) } },
-    select: { userId: true },
+  await tenantTransaction(async (tx) => {
+    const drivers = await tx.driver.findMany({
+      where: { id: { in: driverIds.map(Number) } },
+      select: { id: true, userId: true },
+    });
+    await tx.driver.deleteMany({ where: { id: { in: drivers.map((d) => d.id) } } });
+    await tx.membership.deleteMany({ where: { userId: { in: drivers.map((d) => d.userId) }, role: 'DRIVER' } });
   });
-
-  await prisma.user.deleteMany({ where: { id: { in: drivers.map((d) => d.userId) } } });
 
   res.json({ message: 'Selected drivers removed.' });
 });

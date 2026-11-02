@@ -1,12 +1,13 @@
 import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { isStaff } from '../config/roles.js';
+import { findDriverBus as getBusForDriver } from '../services/busAccess.js';
 
-// ── Helpers ────────────────────────────────────────────────────────────
-async function getBusForDriver(userId) {
-  const driver = await prisma.driver.findUnique({ where: { userId } });
-  if (!driver) return null;
-  return prisma.bus.findFirst({ where: { driverId: driver.id } });
+// Staff pick the bus explicitly; it must exist in their organisation.
+async function getBusForStaff(rawId) {
+  const id = Number(rawId);
+  if (!Number.isInteger(id)) return null;
+  return prisma.bus.findUnique({ where: { id } });
 }
 
 // ── Bus status toggle (drivers + staff) ──────────────────────────────
@@ -17,8 +18,7 @@ export const setBusStatus = asyncHandler(async (req, res) => {
 
   let bus;
   if (isStaff(req.user.role)) {
-    const { busId } = req.body;
-    bus = await prisma.bus.findUnique({ where: { id: Number(busId) } });
+    bus = await getBusForStaff(req.body.busId);
     if (!bus) return res.status(404).json({ error: 'Bus not found.' });
     bus = await prisma.bus.update({ where: { id: bus.id }, data: { status } });
   } else {
@@ -39,7 +39,9 @@ export const addVehicleLog = asyncHandler(async (req, res) => {
 
   let busId;
   if (isStaff(req.user.role)) {
-    busId = Number(req.body.busId);
+    const bus = await getBusForStaff(req.body.busId);
+    if (!bus) return res.status(404).json({ error: 'Bus not found.' });
+    busId = bus.id;
   } else {
     const bus = await getBusForDriver(req.user.id);
     if (!bus) return res.status(404).json({ error: 'No bus assigned to you.' });
@@ -63,7 +65,9 @@ export const addVehicleLog = asyncHandler(async (req, res) => {
 export const listVehicleLogs = asyncHandler(async (req, res) => {
   let busId;
   if (isStaff(req.user.role)) {
-    busId = Number(req.params.busId || req.query.busId);
+    const bus = await getBusForStaff(req.params.busId || req.query.busId);
+    if (!bus) return res.status(404).json({ error: 'Bus not found.' });
+    busId = bus.id;
   } else {
     const bus = await getBusForDriver(req.user.id);
     if (!bus) return res.status(404).json({ error: 'No bus assigned to you.' });
@@ -94,7 +98,9 @@ const SAFETY_ITEMS = [
 export const getSafetyChecklist = asyncHandler(async (req, res) => {
   let busId;
   if (isStaff(req.user.role)) {
-    busId = Number(req.params.busId || req.query.busId);
+    const bus = await getBusForStaff(req.params.busId || req.query.busId);
+    if (!bus) return res.status(404).json({ error: 'Bus not found.' });
+    busId = bus.id;
   } else {
     const bus = await getBusForDriver(req.user.id);
     if (!bus) return res.status(404).json({ error: 'No bus assigned to you.' });
@@ -120,7 +126,9 @@ export const toggleSafetyCheck = asyncHandler(async (req, res) => {
 
   let busId;
   if (isStaff(req.user.role)) {
-    busId = Number(req.body.busId);
+    const bus = await getBusForStaff(req.body.busId);
+    if (!bus) return res.status(404).json({ error: 'Bus not found.' });
+    busId = bus.id;
   } else {
     const bus = await getBusForDriver(req.user.id);
     if (!bus) return res.status(404).json({ error: 'No bus assigned to you.' });

@@ -1,98 +1,121 @@
-import { verifyAccessToken } from '../services/token.service.js';
 import prisma from '../config/db.js';
+import { resolveSession } from '../middleware/auth.js';
+import { runWithContext } from '../context/requestContext.js';
+import { isStaff } from '../config/roles.js';
+import { findDriverBus, findViewableBus } from '../services/busAccess.js';
+
+// Room names are always prefixed with the organisation, and only the server
+// decides which rooms a socket joins, so events never cross tenants.
+export const rooms = {
+  org: (orgId) => `org:${orgId}`,
+  staff: (orgId) => `org:${orgId}:staff`,
+  bus: (orgId, busId) => `org:${orgId}:bus:${busId}`,
+};
 
 // Registers all GPS-related Socket.io event handlers.
 //
 // Flow:
-//  1. A driver's client connects and emits 'driver:join' with their busId.
-//  2. Students viewing the map emit 'student:watchBus' with the busId of
-//     the bus assigned to their route, joining a room named `bus:<id>`.
-//  3. When the driver emits 'driver:location', the server persists it and
-//     broadcasts it to everyone in that bus's room within milliseconds.
+//  1. Every connection must present a valid access token in the handshake
+//     (auth.token). The socket joins its organisation's room, and staff also
+//     join the organisation's staff room.
+//  2. A driver emits 'driver:join'; the server joins them to their own
+//     bus's room (the busId in the payload is ignored).
+//  3. Students and staff emit 'student:watchBus' with a busId; the server
+//     only joins them if they may see that bus within their organisation.
+//  4. 'driver:location' is persisted and broadcast to that bus's room and to
+//     the organisation's staff.
 export function registerGpsSocket(io) {
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
-    if (!token) return next(); // allow anonymous connect; specific events still require auth below
+    if (!token) return next(new Error('Authentication required.'));
     try {
-      socket.user = verifyAccessToken(token);
-    } catch {
-      // invalid token — leave socket.user undefined, events will reject below
+      const session = await resolveSession(token);
+      if (session.error || !session.user.organizationId) return next(new Error(session.error || 'Organisation session required.'));
+      socket.data.user = session.user;
+      next();
+    } catch (err) {
+      next(err);
     }
-    next();
   });
 
   io.on('connection', (socket) => {
-    socket.on('driver:join', ({ busId }) => {
-      if (!socket.user || socket.user.role !== 'DRIVER') return;
-      socket.join(`bus:${busId}`);
-      socket.data.busId = busId;
-    });
+    const user = socket.data.user;
+    const orgId = user.organizationId;
+    socket.join(rooms.org(orgId));
+    if (isStaff(user.role)) socket.join(rooms.staff(orgId));
 
-    socket.on('student:watchBus', ({ busId }) => {
-      socket.join(`bus:${busId}`);
-    });
+    // Runs a handler inside the socket's tenant context and never lets an
+    // error escape to crash the process.
+    const on = (event, handler) => {
+      socket.on(event, (payload = {}) =>
+        runWithContext({ userId: user.id, organizationId: orgId, role: user.role }, async () => {
+          try {
+            await handler(payload || {});
+          } catch (err) {
+            console.error(`Socket handler ${event} failed:`, err.message);
+          }
+        })
+      );
+    };
 
-    socket.on('driver:location', async ({ busId, lat, lng }) => {
-      if (!socket.user || socket.user.role !== 'DRIVER') return;
-      if (typeof lat !== 'number' || typeof lng !== 'number') return;
-
-      try {
-        const log = await prisma.gpsLog.create({
-          data: { busId: Number(busId), lat, lng },
-        });
-
-        io.to(`bus:${busId}`).emit('bus:location', {
-          busId: Number(busId),
-          lat,
-          lng,
-          recordedAt: log.recordedAt,
-        });
-      } catch (err) {
-        console.error('Failed to persist GPS log:', err.message);
+    // The driver's bus, looked up once per socket.
+    const driverBus = async () => {
+      if (user.role !== 'DRIVER') return null;
+      if (!socket.data.busId) {
+        const bus = await findDriverBus(user.id);
+        socket.data.busId = bus?.id || null;
       }
+      return socket.data.busId;
+    };
+
+    on('driver:join', async () => {
+      const busId = await driverBus();
+      if (busId) socket.join(rooms.bus(orgId, busId));
     });
 
-socket.on('driver:emergency', ({ busId, message }) => {
-      if (!socket.user || socket.user.role !== 'DRIVER') return;
-      io.to(`bus:${busId}`).emit('bus:emergency', {
-        busId: Number(busId),
-        message: message || '🚨 Emergency reported by the driver.',
-        at: new Date().toISOString(),
-      });
-      // Also notify admins (broadcast room).
-      io.emit('admin:alert', {
-        type: 'EMERGENCY',
-        busId: Number(busId),
-        message: message || '🚨 Emergency reported by the driver.',
-        at: new Date().toISOString(),
-      });
+    on('student:watchBus', async ({ busId }) => {
+      const bus = await findViewableBus(user, busId);
+      if (bus) socket.join(rooms.bus(orgId, bus.id));
     });
 
-    socket.on('driver:delay', ({ busId, minutes }) => {
-      if (!socket.user || socket.user.role !== 'DRIVER') return;
-      io.to(`bus:${busId}`).emit('bus:delay', {
-        busId: Number(busId),
-        minutes: Number(minutes) || 5,
-        at: new Date().toISOString(),
-      });
-      io.emit('admin:alert', {
-        type: 'DELAY',
-        busId: Number(busId),
-        minutes: Number(minutes) || 5,
-        at: new Date().toISOString(),
-      });
+    on('driver:location', async ({ lat, lng }) => {
+      if (typeof lat !== 'number' || typeof lng !== 'number') return;
+      const busId = await driverBus();
+      if (!busId) return;
+
+      const log = await prisma.gpsLog.create({ data: { busId, lat, lng } });
+      const payload = { busId, lat, lng, recordedAt: log.recordedAt };
+      io.to(rooms.bus(orgId, busId)).to(rooms.staff(orgId)).emit('bus:location', payload);
     });
 
-    socket.on('boarding:update', ({ busId, studentId, status }) => {
-      io.to(`bus:${busId}`).emit('boarding:changed', { busId, studentId, status });
+    on('driver:emergency', async ({ message }) => {
+      const busId = await driverBus();
+      if (!busId) return;
+      const text = typeof message === 'string' && message ? message.slice(0, 500) : '🚨 Emergency reported by the driver.';
+      const at = new Date().toISOString();
+      io.to(rooms.bus(orgId, busId)).emit('bus:emergency', { busId, message: text, at });
+      io.to(rooms.staff(orgId)).emit('admin:alert', { type: 'EMERGENCY', busId, message: text, at });
     });
 
-    socket.on('slot:update', ({ routeId }) => {
-      io.emit('slot:changed', { routeId });
+    on('driver:delay', async ({ minutes }) => {
+      const busId = await driverBus();
+      if (!busId) return;
+      const mins = Math.min(Math.max(Number(minutes) || 5, 1), 240);
+      const at = new Date().toISOString();
+      io.to(rooms.bus(orgId, busId)).emit('bus:delay', { busId, minutes: mins, at });
+      io.to(rooms.staff(orgId)).emit('admin:alert', { type: 'DELAY', busId, minutes: mins, at });
     });
 
-    socket.on('disconnect', () => {
-      // Rooms are cleaned up automatically by Socket.io on disconnect.
+    on('boarding:update', async ({ studentId, status }) => {
+      const busId = await driverBus();
+      if (!busId) return;
+      io.to(rooms.bus(orgId, busId)).to(rooms.staff(orgId))
+        .emit('boarding:changed', { busId, studentId: Number(studentId), status });
+    });
+
+    on('slot:update', async ({ routeId }) => {
+      if (!isStaff(user.role)) return;
+      io.to(rooms.org(orgId)).emit('slot:changed', { routeId: Number(routeId) });
     });
   });
 }

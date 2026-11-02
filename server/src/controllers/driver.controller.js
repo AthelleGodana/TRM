@@ -2,7 +2,7 @@ import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 export const getMyRoute = asyncHandler(async (req, res) => {
-  const driver = await prisma.driver.findUnique({ where: { userId: req.user.id } });
+  const driver = await prisma.driver.findFirst({ where: { userId: req.user.id } });
   if (!driver) return res.status(404).json({ error: 'Driver profile not found.' });
 
   const bus = await prisma.bus.findFirst({

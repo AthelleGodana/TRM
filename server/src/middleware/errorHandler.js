@@ -5,12 +5,15 @@ export function errorHandler(err, req, res, next) {
   if (err.code === 'P2002') {
     return res.status(409).json({ error: 'A record with that value already exists.' });
   }
-  if (err.code === 'P2025') {
+  // Missing records and references to another organisation's records both
+  // look like "not found", so the existence of other tenants' data never leaks.
+  if (err.code === 'P2025' || err.code === 'P2003' || /cross-tenant reference/.test(err.message || '')) {
     return res.status(404).json({ error: 'Record not found.' });
   }
 
   const status = err.status || 500;
-  res.status(status).json({ error: err.message || 'Internal server error.' });
+  const message = status >= 500 ? 'Internal server error.' : err.message;
+  res.status(status).json({ error: message });
 }
 
 export function notFound(req, res) {

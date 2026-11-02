@@ -1,4 +1,5 @@
-import prisma from '../config/db.js';
+import prisma, { systemPrisma, asTenant } from '../config/db.js';
+import { env } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getMpesaAccessToken, initiateStkPush } from '../utils/mpesa.js';
 
@@ -18,7 +19,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Phone number is required for M-Pesa payment.' });
   }
 
-  const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+  const student = await prisma.student.findFirst({ where: { userId: req.user.id } });
   if (!student) return res.status(404).json({ error: 'Student profile not found.' });
 
   const amount = ROUTE_PRICE[tier];
@@ -26,7 +27,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
   // ==========================================
   // 🛠️ DEVELOPER SANDBOX: THE MAGIC NUMBER
   // ==========================================
-  if (phoneNumber === '0700000000') {
+  if (phoneNumber === '0700000000' && env.nodeEnv !== 'production') {
     console.log('🚧 Developer Bypass Triggered: Simulating successful M-Pesa payment.');
     
     // 1. Instantly upgrade the student's tier
@@ -85,8 +86,20 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
 
   const { CheckoutRequestID, ResultCode, CallbackMetadata } = callback;
 
-  const payment = await prisma.payment.findFirst({ where: { checkoutRequestId: CheckoutRequestID } });
-  if (!payment) return res.status(404).json({ error: 'Payment not found.' });
+  // Daraja calls back without any tenant context, so the payment is looked
+  // up across tenants once and everything after runs as that tenant.
+  const found = await systemPrisma.payment.findFirst({
+    where: { checkoutRequestId: CheckoutRequestID },
+    select: { id: true, organizationId: true },
+  });
+  if (!found) return res.status(404).json({ error: 'Payment not found.' });
+
+  await asTenant(found.organizationId, () => applyMpesaResult(found.id, { ResultCode, CallbackMetadata }));
+  res.json({ ResultCode: 0, ResultDesc: 'Callback processed.' });
+});
+
+async function applyMpesaResult(paymentId, { ResultCode, CallbackMetadata }) {
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
 
   if (ResultCode === 0) {
     const items = CallbackMetadata?.Item || [];
@@ -108,12 +121,10 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
   } else {
     await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED' } });
   }
-
-  res.json({ ResultCode: 0, ResultDesc: 'Callback processed.' });
-});
+}
 
 export const getMyPayments = asyncHandler(async (req, res) => {
-  const student = await prisma.student.findUnique({ where: { userId: req.user.id } });
+  const student = await prisma.student.findFirst({ where: { userId: req.user.id } });
   if (!student) return res.status(404).json({ error: 'Student profile not found.' });
 
   const payments = await prisma.payment.findMany({

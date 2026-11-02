@@ -2,9 +2,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// DATABASE_URL is the application role (subject to row-level security);
+// DIRECT_DATABASE_URL is the owner role that runs migrations.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // Legacy single-tenant role. Replaced by Membership.role; kept only until
@@ -185,8 +188,8 @@ model User {
   lastName     String
   createdAt    DateTime  @default(now())
 
-  student Student?
-  driver  Driver?
+  students Student[]
+  drivers  Driver[]
 
   memberships            Membership[]
   refreshTokens          RefreshToken[]
@@ -197,15 +200,15 @@ model User {
 }
 
 model Student {
-  id             Int           @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         Int           @unique
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         Int?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   address        String?
   phone          String?
   email          String?
-  paymentTier    Tier          @default(TOWN)
+  paymentTier    Tier         @default(TOWN)
 
   arrivePickupPointId Int?
   arrivePickupPoint   PickupPoint? @relation("ArrivePickup", fields: [arrivePickupPointId], references: [id])
@@ -220,28 +223,33 @@ model Student {
   roster   TripRoster[]
 
   createdAt DateTime @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, routeId])
 }
 
 model Driver {
-  id             Int           @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         Int           @unique
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   buses Bus[]
 
   createdAt DateTime @default(now())
+
+  @@unique([organizationId, userId])
 }
 
 model Route {
-  id              Int           @id @default(autoincrement())
-  organizationId  Int?
-  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              Int          @id @default(autoincrement())
+  organizationId  Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name            String
   schoolArrival   String?
   schoolDeparture String?
-  isActive        Boolean       @default(true)
+  isActive        Boolean      @default(true)
 
   pickupPoints PickupPoint[]
   buses        Bus[]
@@ -249,24 +257,28 @@ model Route {
   slots        PickupSlot[]
 
   createdAt DateTime @default(now())
+
+  @@index([organizationId, isActive])
 }
 
 model PickupPoint {
-  id             Int           @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   routeId        Int
-  route          Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  route          Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
   name           String
   tier           Tier
   lat            Float?
   lng            Float?
-  order          Int           @default(0)
+  order          Int          @default(0)
 
   studentsArriving Student[] @relation("ArrivePickup")
   studentsLeaving  Student[] @relation("DepartPickup")
 
   createdAt DateTime @default(now())
+
+  @@index([organizationId, routeId])
 }
 
 enum BusStatus {
@@ -276,16 +288,16 @@ enum BusStatus {
 }
 
 model Bus {
-  id             Int           @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  licensePlate   String        @unique
-  capacity       Int           @default(30)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  licensePlate   String
+  capacity       Int          @default(30)
   driverId       Int?
-  driver         Driver?       @relation(fields: [driverId], references: [id])
+  driver         Driver?      @relation(fields: [driverId], references: [id])
   routeId        Int?
-  route          Route?        @relation(fields: [routeId], references: [id])
-  status         BusStatus     @default(OPERATIONAL)
+  route          Route?       @relation(fields: [routeId], references: [id])
+  status         BusStatus    @default(OPERATIONAL)
 
   gpsLogs     GpsLog[]
   vehicleLogs VehicleLog[]
@@ -293,25 +305,31 @@ model Bus {
   slots       PickupSlot[]
 
   createdAt DateTime @default(now())
+
+  @@unique([organizationId, licensePlate])
+  @@index([organizationId, routeId])
+  @@index([organizationId, driverId])
 }
 
 model PickupSlot {
-  id             Int           @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   routeId        Int
-  route          Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  route          Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
   busId          Int?
-  bus            Bus?          @relation(fields: [busId], references: [id])
+  bus            Bus?         @relation(fields: [busId], references: [id])
   time           String // e.g. "06:30"
   label          String // e.g. "Morning 1"
-  capacity       Int           @default(30)
-  bookedCount    Int           @default(0)
-  isActive       Boolean       @default(true)
+  capacity       Int          @default(30)
+  bookedCount    Int          @default(0)
+  isActive       Boolean      @default(true)
 
   bookings TripRoster[]
 
   createdAt DateTime @default(now())
+
+  @@index([organizationId, routeId])
 }
 
 enum BoardingStatus {
@@ -322,8 +340,8 @@ enum BoardingStatus {
 
 model TripRoster {
   id             Int            @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId Int            @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   busId          Int
   bus            Bus            @relation(fields: [busId], references: [id], onDelete: Cascade)
   slotId         Int?
@@ -333,40 +351,45 @@ model TripRoster {
   status         BoardingStatus @default(PENDING)
   tripDate       DateTime       @default(now())
   createdAt      DateTime       @default(now())
+
+  @@index([organizationId, busId, tripDate])
+  @@index([organizationId, studentId, tripDate])
 }
 
 model VehicleLog {
-  id             Int           @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   busId          Int
-  bus            Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
+  bus            Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
   type           String // FUEL | MAINTENANCE | SAFETY_CHECK
   fuelLiters     Float?
-  fuelCost       Decimal?      @db.Decimal(10, 2)
+  fuelCost       Decimal?     @db.Decimal(10, 2)
   odometer       Int?
   notes          String?
   passed         Boolean? // for SAFETY_CHECK items
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, busId, createdAt])
 }
 
 model GpsLog {
-  id             Int           @id @default(autoincrement())
-  organizationId Int?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   busId          Int
-  bus            Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
+  bus            Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
   lat            Float
   lng            Float
-  recordedAt     DateTime      @default(now())
+  recordedAt     DateTime     @default(now())
 
-  @@index([busId, recordedAt])
+  @@index([organizationId, busId, recordedAt])
 }
 
 model Payment {
   id                Int           @id @default(autoincrement())
-  organizationId    Int?
-  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId    Int           @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   studentId         Int
   student           Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   routeId           Int?
@@ -376,4 +399,8 @@ model Payment {
   mpesaReceipt      String?
   checkoutRequestId String?
   createdAt         DateTime      @default(now())
+
+  @@index([organizationId, status])
+  @@index([organizationId, studentId])
+  @@index([checkoutRequestId])
 }

@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
-import prisma from '../src/config/db.js';
-import { bearer, createMember, createOrg, truncateAll } from './helpers.js';
+import { bearer, createMember, createOrg, truncateAll, db as prisma } from './helpers.js';
 
 // Core flows of the existing API, kept as regression coverage while the
 // platform becomes multi-tenant.

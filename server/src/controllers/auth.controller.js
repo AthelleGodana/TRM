@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import prisma from '../config/db.js';
+import { systemPrisma as prisma } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { signAccessToken } from '../services/token.service.js';
 

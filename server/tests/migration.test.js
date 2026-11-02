@@ -11,9 +11,9 @@ const MIGRATIONS_DIR = path.resolve(__dirname, '../prisma/migrations');
 const LEGACY_MIGRATIONS = ['20260801064655_init', '20260805182959_add_slots_vehiclelog_roster'];
 const DB_NAME = 'transtrack_migration_test';
 
-const adminUrl = new URL(process.env.DATABASE_URL);
+const adminUrl = new URL(process.env.DIRECT_DATABASE_URL);
 adminUrl.pathname = '/postgres';
-const dbUrl = new URL(process.env.DATABASE_URL);
+const dbUrl = new URL(process.env.DIRECT_DATABASE_URL);
 dbUrl.pathname = `/${DB_NAME}`;
 
 let db;
@@ -86,6 +86,23 @@ describe('multi-tenancy data migration', () => {
       );
       expect(rows[0].missing, table).toBe(0);
     }
+  });
+
+  it('makes organizationId NOT NULL on every tenant table', async () => {
+    const { rows } = await db.query(`
+      SELECT table_name, is_nullable FROM information_schema.columns
+      WHERE column_name = 'organizationId' AND table_name = ANY($1)`, [TENANT_TABLES]);
+    expect(rows).toHaveLength(TENANT_TABLES.length);
+    expect(rows.filter((r) => r.is_nullable === 'YES')).toEqual([]);
+  });
+
+  it('enables and forces row-level security on every tenant table', async () => {
+    const { rows } = await db.query(
+      `SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY($1)`,
+      [TENANT_TABLES]
+    );
+    expect(rows).toHaveLength(TENANT_TABLES.length);
+    for (const r of rows) expect([r.relname, r.relrowsecurity, r.relforcerowsecurity]).toEqual([r.relname, true, true]);
   });
 
   it('creates a membership for every user with the mapped role', async () => {

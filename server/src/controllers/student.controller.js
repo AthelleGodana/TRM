@@ -3,11 +3,11 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { canAccessPickupPoint } from '../utils/tier.js';
 
 async function getStudentByUserId(userId) {
-  return prisma.student.findUnique({ where: { userId } });
+  return prisma.student.findFirst({ where: { userId } });
 }
 
 export const getProfile = asyncHandler(async (req, res) => {
-  const student = await prisma.student.findUnique({
+  const student = await prisma.student.findFirst({
     where: { userId: req.user.id },
     include: {
       arrivePickupPoint: true,

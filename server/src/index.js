@@ -2,8 +2,11 @@ import http from 'http';
 import { Server } from 'socket.io';
 
 import { env } from './config/env.js';
+import { checkDatabaseRoles } from './config/db.js';
 import { createApp } from './app.js';
 import { registerGpsSocket } from './socket/gps.socket.js';
+
+await checkDatabaseRoles({ production: env.nodeEnv === 'production' });
 
 const app = createApp();
 const server = http.createServer(app);
