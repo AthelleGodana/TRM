@@ -35,6 +35,8 @@ export const env = {
   // Development-only "sign in as a demo user" for seeded @demo.transtrack.local
   // accounts. Refused in production (see the check below).
   devLogin: bool(process.env.DEV_LOGIN, false),
+  // GPS points older than this are deleted daily; 0 keeps them forever.
+  gpsRetentionDays: int(process.env.GPS_RETENTION_DAYS, 90),
 
   fuel: {
     // 'null' (default) or 'http'. 'http' is only used for organisations

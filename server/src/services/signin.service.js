@@ -44,6 +44,27 @@ async function upsertGoogleUser(profile) {
   });
 }
 
+// Creates the pupils named on a PARENT invitation (CSV import) and links
+// them to the parent. A pupil with the same name already linked to this
+// parent is reused, so re-importing the same file does not duplicate.
+async function linkInvitedChildren(tx, invitation, user) {
+  const children = Array.isArray(invitation.metadata?.children) ? invitation.metadata.children : [];
+  const organizationId = invitation.organizationId;
+  for (const child of children) {
+    const firstName = String(child?.firstName || '').trim().slice(0, 80);
+    const lastName = String(child?.lastName || '').trim().slice(0, 80);
+    if (!firstName || !lastName) continue;
+    const pupil = await tx.student.findFirst({
+      where: { organizationId, userId: null, firstName, lastName, guardians: { some: { userId: user.id } } },
+    }) || await tx.student.create({ data: { organizationId, firstName, lastName } });
+    await tx.passengerGuardian.upsert({
+      where: { organizationId_studentId_userId: { organizationId, studentId: pupil.id, userId: user.id } },
+      update: {},
+      create: { organizationId, studentId: pupil.id, userId: user.id },
+    });
+  }
+}
+
 // Turns pending, unexpired invitations for this email into memberships.
 async function acceptInvitations(user) {
   if (!user.email) return;
@@ -64,6 +85,7 @@ async function acceptInvitations(user) {
       if (!existing) {
         await addMember({ organizationId: invitation.organizationId, userId: user.id, role: invitation.role }, tx);
       }
+      if (invitation.role === 'PARENT') await linkInvitedChildren(tx, invitation, user);
       await tx.invitation.update({
         where: { id: invitation.id },
         data: { status: 'ACCEPTED', acceptedAt: new Date(), acceptedById: user.id },
@@ -76,6 +98,8 @@ async function acceptInvitations(user) {
 //   { status: 'PLATFORM', user }                 SUPER_ADMIN session
 //   { status: 'ACTIVE', user, membership }       organisation session
 //   { status: 'ORG_PENDING' | 'ORG_SUSPENDED' }   cannot sign in yet
+//   { status: 'ACCESS_PENDING', user, organizations }   request awaiting an admin
+//   { status: 'ACCESS_REJECTED', user, organizations }  every request was declined
 //   { status: 'NEEDS_ONBOARDING', user }          request access / register
 export async function signInWithGoogle(profile) {
   const user = await upsertGoogleUser(profile);
@@ -100,6 +124,19 @@ export async function resolveSignInOutcome(user) {
   }
   if (others.some((m) => m.organization.status === 'SUSPENDED')) {
     return { status: 'ORG_SUSPENDED', user };
+  }
+
+  const requests = await db.accessRequest.findMany({
+    where: { userId: user.id, status: { in: ['PENDING', 'REJECTED'] }, organization: { status: 'ACTIVE' } },
+    include: { organization: { select: { name: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  const pending = requests.filter((r) => r.status === 'PENDING');
+  if (pending.length) {
+    return { status: 'ACCESS_PENDING', user, organizations: pending.map((r) => r.organization.name) };
+  }
+  if (requests.length) {
+    return { status: 'ACCESS_REJECTED', user, organizations: requests.map((r) => r.organization.name) };
   }
   return { status: 'NEEDS_ONBOARDING', user };
 }

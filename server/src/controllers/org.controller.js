@@ -59,6 +59,16 @@ export const updateBranding = asyncHandler(async (req, res) => {
   res.json({ branding: org.branding });
 });
 
+// GET /org/summary — counts for the admin's navigation badges (in-app
+// notice instead of email).
+export const getSummary = asyncHandler(async (req, res) => {
+  const [pendingAccessRequests, pendingInvitations] = await Promise.all([
+    prisma.accessRequest.count({ where: { status: 'PENDING' } }),
+    prisma.invitation.count({ where: { status: 'PENDING', expiresAt: { gt: new Date() } } }),
+  ]);
+  res.json({ pendingAccessRequests, pendingInvitations });
+});
+
 // ── Members ───────────────────────────────────────────────────────────
 export const listMembers = asyncHandler(async (req, res) => {
   const members = await prisma.membership.findMany({ include: { user: userFields }, orderBy: { createdAt: 'asc' } });
@@ -154,6 +164,66 @@ export const createInvitation = asyncHandler(async (req, res) => {
     });
   });
   res.status(201).json({ invitation });
+});
+
+// POST /org/invitations/bulk — { rows: [{ email, role, childFirstName?, childLastName? }] }
+// The browser parses the CSV, so no upload handling is needed here. Valid
+// rows become invitations; the rest come back in `skipped` with a reason.
+// A PARENT row may name a child: the pupil is created and linked when the
+// parent first signs in. Several rows for the same parent add children.
+export const MAX_BULK_ROWS = 500;
+
+export const bulkCreateInvitations = asyncHandler(async (req, res) => {
+  const rows = req.body?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: 'No rows to import.' });
+  if (rows.length > MAX_BULK_ROWS) {
+    return res.status(400).json({ error: `Import at most ${MAX_BULK_ROWS} rows at a time.` });
+  }
+
+  const members = await prisma.membership.findMany({ select: { user: { select: { email: true } } } });
+  const memberEmails = new Set(members.map((m) => m.user.email).filter(Boolean));
+
+  const drafts = new Map();
+  const skipped = [];
+  rows.forEach((raw, index) => {
+    const row = index + 1;
+    const email = String(raw?.email || '').trim().toLowerCase();
+    const role = String(raw?.role || '').trim().toUpperCase();
+    const childFirstName = String(raw?.childFirstName || '').trim().slice(0, 80);
+    const childLastName = String(raw?.childLastName || '').trim().slice(0, 80);
+    const skip = (reason) => skipped.push({ row, email, reason });
+
+    if (!EMAIL.test(email)) return skip('Invalid email address.');
+    if (!isRoleAllowed(req.org.profile, role)) return skip('That role is not available for this organisation.');
+    if (memberEmails.has(email)) return skip('Already a member.');
+    const hasChild = Boolean(childFirstName || childLastName);
+    if (hasChild && role !== 'PARENT') return skip('Only PARENT rows can name a child.');
+    if (hasChild && !(childFirstName && childLastName)) return skip("Give both the child's first and last name.");
+
+    const existing = drafts.get(email);
+    if (existing && (existing.role !== role || !hasChild)) return skip('Duplicate row.');
+    const draft = existing || { email, role, children: [] };
+    if (hasChild) draft.children.push({ firstName: childFirstName, lastName: childLastName });
+    drafts.set(email, draft);
+  });
+
+  const expiresAt = new Date(Date.now() + env.invitationTtlDays * 24 * 60 * 60 * 1000);
+  const emails = [...drafts.keys()];
+  if (emails.length) {
+    await tenantTransaction(async (tx) => {
+      // Re-importing replaces pending invitations for the same people.
+      await tx.invitation.updateMany({ where: { email: { in: emails }, status: 'PENDING' }, data: { status: 'REVOKED' } });
+      for (const draft of drafts.values()) {
+        await tx.invitation.create({
+          data: {
+            email: draft.email, role: draft.role, invitedById: req.user.id, expiresAt,
+            metadata: draft.children.length ? { children: draft.children } : {},
+          },
+        });
+      }
+    });
+  }
+  res.status(201).json({ created: emails.length, skipped });
 });
 
 export const revokeInvitation = asyncHandler(async (req, res) => {

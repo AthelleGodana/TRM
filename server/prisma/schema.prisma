@@ -117,6 +117,9 @@ model Invitation {
   acceptedBy     User?            @relation("InvitationsAccepted", fields: [acceptedById], references: [id], onDelete: SetNull)
   expiresAt      DateTime
   acceptedAt     DateTime?
+  // Extra data applied on acceptance, e.g. { children: [{ firstName, lastName }] }
+  // for a PARENT invited by CSV import.
+  metadata       Json             @default("{}")
   createdAt      DateTime         @default(now())
 
   @@index([organizationId, status])

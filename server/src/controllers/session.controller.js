@@ -14,6 +14,10 @@ const OUTCOME_ERRORS = {
   ORG_SUSPENDED: 'Your organisation has been suspended. Contact your administrator.',
 };
 
+// Outcomes without an organisation session. The onboarding token lets the
+// person request access (again, or elsewhere) or register an organisation.
+const ONBOARDING_OUTCOMES = ['NEEDS_ONBOARDING', 'ACCESS_PENDING', 'ACCESS_REJECTED'];
+
 // Turns a sign-in outcome into { status, httpStatus, body }. A refresh
 // cookie is set only for a successful session.
 async function respondToOutcome(res, outcome) {
@@ -21,7 +25,7 @@ async function respondToOutcome(res, outcome) {
     const { accessToken, session } = await issueSession(res, outcome);
     return { status: 'ACTIVE', httpStatus: 200, body: { status: 'ACTIVE', accessToken, session } };
   }
-  if (outcome.status === 'NEEDS_ONBOARDING') {
+  if (ONBOARDING_OUTCOMES.includes(outcome.status)) {
     return {
       status: outcome.status,
       httpStatus: 200,
@@ -29,6 +33,7 @@ async function respondToOutcome(res, outcome) {
         status: outcome.status,
         onboardingToken: signOnboardingToken(outcome.user.id),
         user: { name: outcome.user.name, email: outcome.user.email, picture: outcome.user.picture },
+        ...(outcome.organizations ? { organizations: outcome.organizations } : {}),
       },
     };
   }
@@ -61,9 +66,10 @@ export const googleRedirect = asyncHandler(async (req, res) => {
   try {
     const result = await completeGoogleSignIn(res, req.body?.credential);
     if (result.status === 'ACTIVE') return res.redirect(303, `${env.clientUrl}/auth/callback`);
-    if (result.status === 'NEEDS_ONBOARDING') {
+    if (ONBOARDING_OUTCOMES.includes(result.status)) {
       // The fragment never reaches a server or logs.
-      return res.redirect(303, `${env.clientUrl}/onboarding#token=${encodeURIComponent(result.body.onboardingToken)}`);
+      const fragment = `token=${encodeURIComponent(result.body.onboardingToken)}&status=${result.status}`;
+      return res.redirect(303, `${env.clientUrl}/onboarding#${fragment}`);
     }
     return res.redirect(303, `${env.clientUrl}/login?error=${result.status}`);
   } catch (err) {
