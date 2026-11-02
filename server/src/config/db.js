@@ -18,6 +18,7 @@ export const TENANT_MODELS = new Set([
   'Student', 'Driver', 'Route', 'PickupPoint', 'Bus', 'PickupSlot',
   'TripRoster', 'VehicleLog', 'GpsLog', 'Payment',
   'Membership', 'Invitation', 'AccessRequest', 'PassengerGuardian',
+  'VehicleFuelProfile', 'FuelCard', 'FuelRecord', 'CalibrationRecord', 'FuelAnalysisRun', 'FuelAnomaly',
 ]);
 
 // Global models the tenant client must never touch directly; they would

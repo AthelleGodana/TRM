@@ -68,20 +68,26 @@ model Organization {
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @updatedAt
 
-  memberships    Membership[]
-  invitations    Invitation[]
-  accessRequests AccessRequest[]
-  students       Student[]
-  drivers        Driver[]
-  routes         Route[]
-  pickupPoints   PickupPoint[]
-  buses          Bus[]
-  slots          PickupSlot[]
-  tripRosters    TripRoster[]
-  vehicleLogs    VehicleLog[]
-  gpsLogs        GpsLog[]
-  guardians      PassengerGuardian[]
-  payments       Payment[]
+  memberships      Membership[]
+  invitations      Invitation[]
+  accessRequests   AccessRequest[]
+  students         Student[]
+  drivers          Driver[]
+  routes           Route[]
+  pickupPoints     PickupPoint[]
+  buses            Bus[]
+  slots            PickupSlot[]
+  tripRosters      TripRoster[]
+  vehicleLogs      VehicleLog[]
+  gpsLogs          GpsLog[]
+  guardians        PassengerGuardian[]
+  fuelProfiles     VehicleFuelProfile[]
+  fuelCards        FuelCard[]
+  fuelRecords      FuelRecord[]
+  calibrations     CalibrationRecord[]
+  fuelAnalysisRuns FuelAnalysisRun[]
+  fuelAnomalies    FuelAnomaly[]
+  payments         Payment[]
 }
 
 model Membership {
@@ -193,6 +199,9 @@ model User {
   drivers  Driver[]
 
   guardianOf             PassengerGuardian[]
+  fuelRecordsCreated     FuelRecord[]        @relation("FuelRecordCreatedBy")
+  calibrationsDone       CalibrationRecord[] @relation("CalibrationPerformedBy")
+  anomaliesReviewed      FuelAnomaly[]       @relation("AnomalyReviewedBy")
   memberships            Membership[]
   refreshTokens          RefreshToken[]
   invitationsSent        Invitation[]        @relation("InvitationsSent")
@@ -242,7 +251,9 @@ model Driver {
   userId         Int
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  buses Bus[]
+  fuelCards   FuelCard[]
+  fuelRecords FuelRecord[]
+  buses       Bus[]
 
   createdAt DateTime @default(now())
 
@@ -306,10 +317,15 @@ model Bus {
   route          Route?       @relation(fields: [routeId], references: [id])
   status         BusStatus    @default(OPERATIONAL)
 
-  gpsLogs     GpsLog[]
-  vehicleLogs VehicleLog[]
-  tripRosters TripRoster[]
-  slots       PickupSlot[]
+  fuelProfile   VehicleFuelProfile?
+  fuelCards     FuelCard[]
+  fuelRecords   FuelRecord[]
+  calibrations  CalibrationRecord[]
+  fuelAnomalies FuelAnomaly[]
+  gpsLogs       GpsLog[]
+  vehicleLogs   VehicleLog[]
+  tripRosters   TripRoster[]
+  slots         PickupSlot[]
 
   createdAt DateTime @default(now())
 
@@ -425,4 +441,184 @@ model PassengerGuardian {
 
   @@unique([organizationId, studentId, userId])
   @@index([organizationId, userId])
+}
+
+// ── AI Fuel Hub (scaffold) ────────────────────────────────────────────────
+// Tenant-scoped like every other operational table (RLS + same-tenant
+// triggers). FuelAnalysisRun and FuelAnomaly are written by the analysis
+// job once an AI provider is plugged in; until then they stay empty.
+
+enum FuelType {
+  DIESEL
+  PETROL
+  ELECTRIC
+  HYBRID
+  CNG
+  LPG
+}
+
+enum FuelSource {
+  MANUAL
+  FUEL_CARD
+}
+
+enum FuelCardStatus {
+  ACTIVE
+  BLOCKED
+  EXPIRED
+}
+
+enum FuelAnalysisStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum AnomalySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AnomalyStatus {
+  OPEN
+  CONFIRMED
+  DISMISSED
+}
+
+model VehicleFuelProfile {
+  id                        Int          @id @default(autoincrement())
+  organizationId            Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId                     Int
+  bus                       Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
+  fuelType                  FuelType
+  tankCapacityLitres        Decimal      @db.Decimal(8, 2)
+  expectedConsumptionL100km Decimal      @db.Decimal(6, 2)
+  calibrationNotes          String?
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+
+  @@unique([busId])
+  @@unique([organizationId, busId])
+}
+
+// Card numbers are never stored in full; only the last four digits.
+model FuelCard {
+  id             Int            @id @default(autoincrement())
+  organizationId Int            @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  label          String
+  provider       String?
+  last4          String         @db.VarChar(4)
+  busId          Int?
+  bus            Bus?           @relation(fields: [busId], references: [id], onDelete: SetNull)
+  driverId       Int?
+  driver         Driver?        @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  status         FuelCardStatus @default(ACTIVE)
+  monthlyLimit   Decimal?       @db.Decimal(12, 2)
+  expiresAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  fuelRecords FuelRecord[]
+
+  @@index([organizationId, status])
+}
+
+model FuelRecord {
+  id                 Int          @id @default(autoincrement())
+  organizationId     Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId              Int
+  bus                Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
+  driverId           Int?
+  driver             Driver?      @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  fuelCardId         Int?
+  fuelCard           FuelCard?    @relation(fields: [fuelCardId], references: [id], onDelete: SetNull)
+  litres             Decimal      @db.Decimal(10, 2)
+  pricePerLitre      Decimal?     @db.Decimal(10, 2)
+  totalCost          Decimal?     @db.Decimal(12, 2)
+  odometer           Int?
+  station            String?
+  filledAt           DateTime
+  source             FuelSource   @default(MANUAL)
+  receiptImageUrl    String?
+  notes              String?
+  createdById        Int?
+  createdBy          User?        @relation("FuelRecordCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  // Set for records copied from (or mirrored from) a VehicleLog FUEL entry.
+  legacyVehicleLogId Int?         @unique
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  anomalies FuelAnomaly[]
+
+  @@index([organizationId, busId, filledAt])
+  @@index([organizationId, filledAt])
+  @@index([organizationId, driverId])
+}
+
+model CalibrationRecord {
+  id                        Int          @id @default(autoincrement())
+  organizationId            Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId                     Int
+  bus                       Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
+  calibratedAt              DateTime
+  odometer                  Int?
+  tankLevelLitres           Decimal?     @db.Decimal(8, 2)
+  measuredConsumptionL100km Decimal?     @db.Decimal(6, 2)
+  method                    String?
+  notes                     String?
+  performedById             Int?
+  performedBy               User?        @relation("CalibrationPerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
+  createdAt                 DateTime     @default(now())
+
+  @@index([organizationId, busId, calibratedAt])
+}
+
+model FuelAnalysisRun {
+  id              Int                @id @default(autoincrement())
+  organizationId  Int                @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status          FuelAnalysisStatus @default(PENDING)
+  provider        String
+  startedAt       DateTime           @default(now())
+  finishedAt      DateTime?
+  recordsAnalyzed Int                @default(0)
+  anomaliesFound  Int                @default(0)
+  error           String?
+
+  anomalies FuelAnomaly[]
+
+  @@index([organizationId, startedAt])
+}
+
+model FuelAnomaly {
+  id             Int              @id @default(autoincrement())
+  organizationId Int              @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runId          Int?
+  run            FuelAnalysisRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  busId          Int?
+  bus            Bus?             @relation(fields: [busId], references: [id], onDelete: SetNull)
+  fuelRecordId   Int?
+  fuelRecord     FuelRecord?      @relation(fields: [fuelRecordId], references: [id], onDelete: SetNull)
+  type           String
+  severity       AnomalySeverity
+  score          Float
+  explanation    Json
+  status         AnomalyStatus    @default(OPEN)
+  reviewedById   Int?
+  reviewedBy     User?            @relation("AnomalyReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime         @default(now())
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, busId])
 }

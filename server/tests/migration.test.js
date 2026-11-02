@@ -97,7 +97,10 @@ describe('multi-tenancy data migration', () => {
   });
 
   it('enables and forces row-level security on every tenant table', async () => {
-    const rlsTables = [...TENANT_TABLES, 'Membership', 'Invitation', 'AccessRequest', 'PassengerGuardian'];
+    const rlsTables = [
+      ...TENANT_TABLES, 'Membership', 'Invitation', 'AccessRequest', 'PassengerGuardian',
+      'VehicleFuelProfile', 'FuelCard', 'FuelRecord', 'CalibrationRecord', 'FuelAnalysisRun', 'FuelAnomaly',
+    ];
     const { rows } = await db.query(
       `SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY($1)`,
       [rlsTables]
@@ -113,6 +116,17 @@ describe('multi-tenancy data migration', () => {
     expect(rows.map((r) => [r.userId, r.role])).toEqual([
       [1, 'ORG_ADMIN'], [2, 'DRIVER'], [3, 'STUDENT'], [4, 'STUDENT'], [5, 'STUDENT'],
     ]);
+  });
+
+  it('copies VehicleLog FUEL entries into FuelRecord and leaves VehicleLog unchanged', async () => {
+    const { rows } = await db.query(`SELECT * FROM "FuelRecord"`);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ busId: 1, odometer: 1000, source: 'MANUAL', legacyVehicleLogId: 1 });
+    expect(Number(rows[0].litres)).toBe(40);
+    expect(Number(rows[0].totalCost)).toBe(7200);
+    expect(Number(rows[0].pricePerLitre)).toBe(180);
+    const { rows: logs } = await db.query(`SELECT count(*)::int AS n FROM "VehicleLog"`);
+    expect(logs[0].n).toBe(2);
   });
 
   it('copies unique student emails onto users and skips shared ones', async () => {
