@@ -105,7 +105,7 @@ export default function Onboarding() {
   return (
     <div className="min-h-dvh flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 sm:px-6 h-16" style={{ marginTop: 'env(safe-area-inset-top)' }}>
-        <Brand />
+        <Link to="/" aria-label="Transtrack Kenya home" className="rounded-lg"><Brand /></Link>
         <ThemeToggle />
       </header>
       <main className="flex-1 flex items-start sm:items-center justify-center px-4 pb-10 pt-4">

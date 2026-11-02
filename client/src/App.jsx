@@ -7,6 +7,7 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import InstallPrompt from './components/common/InstallPrompt';
 import ToastContainer from './components/common/ToastContainer';
 
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Onboarding from './pages/Onboarding';
@@ -41,6 +42,7 @@ return (
           <ToastContainer />
           <AnimatePresence mode="wait">
             <Routes>
+              <Route path="/" element={<PageTransition><Landing /></PageTransition>} />
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/onboarding" element={<PageTransition><Onboarding /></PageTransition>} />
@@ -88,7 +90,7 @@ return (
                 }
               />
 
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AnimatePresence>
         </BrowserRouter>

@@ -17,12 +17,19 @@ const prisma = new PrismaClient({
 
 const DEMO = '@demo.transtrack.local';
 
+// Every demo account belongs to the project owner; there is one account
+// per role because a person holds a single role in each organisation.
+const OWNER = ['Athelle', 'Godana'];
+
 async function upsertUser(email, firstName, lastName, extra = {}) {
   const normalized = email.trim().toLowerCase();
+  const names = { firstName, lastName, name: `${firstName} ${lastName}` };
+  // Demo accounts are renamed on every run, so older demo names disappear.
+  const update = normalized.endsWith(DEMO) ? { ...names, ...extra } : extra;
   return prisma.user.upsert({
     where: { email: normalized },
-    update: extra,
-    create: { email: normalized, firstName, lastName, name: `${firstName} ${lastName}`, ...extra },
+    update,
+    create: { email: normalized, ...names, ...extra },
   });
 }
 
@@ -71,16 +78,16 @@ async function bus(org, licensePlate, routeId, driverId) {
 
 async function main() {
   // ── Platform ──────────────────────────────────────────────────────────
-  await upsertUser(`platform${DEMO}`, 'Platform', 'Admin', { isSuperAdmin: true });
+  await upsertUser(`platform${DEMO}`, ...OWNER, { isSuperAdmin: true });
 
   // ── Demo University ───────────────────────────────────────────────────
   const uni = await organization('demo-university', {
     name: 'Demo University', profile: 'UNIVERSITY', fuelHubEnabled: true,
   });
-  await member(uni, `uni-admin${DEMO}`, 'ORG_ADMIN', 'Amina', 'Odhiambo');
-  await member(uni, `uni-officer${DEMO}`, 'FLEET_MANAGER', 'Brian', 'Kiptoo');
-  const uniDriver = await member(uni, `uni-driver${DEMO}`, 'DRIVER', 'John', 'Mwangi');
-  const uniStudent = await member(uni, `uni-student${DEMO}`, 'STUDENT', 'Jane', 'Wanjiku');
+  await member(uni, `uni-admin${DEMO}`, 'ORG_ADMIN', ...OWNER);
+  await member(uni, `uni-officer${DEMO}`, 'FLEET_MANAGER', ...OWNER);
+  const uniDriver = await member(uni, `uni-driver${DEMO}`, 'DRIVER', ...OWNER);
+  const uniStudent = await member(uni, `uni-student${DEMO}`, 'STUDENT', ...OWNER);
   await member(uni, process.env.SEED_ADMIN_EMAIL, 'ORG_ADMIN', 'Demo', 'Admin');
   await member(uni, process.env.SEED_DRIVER_EMAIL, 'DRIVER', 'Demo', 'Driver');
   await member(uni, process.env.SEED_STUDENT_EMAIL, 'STUDENT', 'Demo', 'Student');
@@ -103,9 +110,9 @@ async function main() {
 
   // ── Demo School ───────────────────────────────────────────────────────
   const school = await organization('demo-school', { name: 'Demo Academy', profile: 'SCHOOL' });
-  await member(school, `school-admin${DEMO}`, 'ORG_ADMIN', 'Grace', 'Achieng');
-  const schoolDriver = await member(school, `school-driver${DEMO}`, 'DRIVER', 'Peter', 'Otieno');
-  const parent = await member(school, `parent${DEMO}`, 'PARENT', 'Mary', 'Njeri');
+  await member(school, `school-admin${DEMO}`, 'ORG_ADMIN', ...OWNER);
+  const schoolDriver = await member(school, `school-driver${DEMO}`, 'DRIVER', ...OWNER);
+  const parent = await member(school, `parent${DEMO}`, 'PARENT', ...OWNER);
 
   const schoolRoute = await routeWithStops(school, 'Karen Loop', [
     { name: 'Karen Shopping Centre', tier: 'TOWN', lat: -1.3197, lng: 36.7076 },
@@ -117,10 +124,13 @@ async function main() {
   if (!pupil) {
     pupil = await prisma.student.create({
       data: {
-        organizationId: school.id, firstName: 'Baraka', lastName: 'Njeri',
+        organizationId: school.id, firstName: 'Baraka', lastName: OWNER[1],
         routeId: schoolRoute.id, arrivePickupPointId: schoolRoute.pickupPoints[0].id,
       },
     });
+  }
+  if (pupil.lastName !== OWNER[1]) {
+    pupil = await prisma.student.update({ where: { id: pupil.id }, data: { lastName: OWNER[1] } });
   }
   await prisma.passengerGuardian.upsert({
     where: { organizationId_studentId_userId: { organizationId: school.id, studentId: pupil.id, userId: parent.user.id } },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -61,33 +61,56 @@ const ROLE_NAMES = {
   ORG_ADMIN: 'Organisation admin', FLEET_MANAGER: 'Transport officer', DRIVER: 'Driver', STUDENT: 'Student', PARENT: 'Parent',
 };
 
-// Development-only list of seeded demo users (shown when DEV_LOGIN=true).
-function DemoAccounts({ onPick, busy }) {
-  const [accounts, setAccounts] = useState(null);
-  useEffect(() => { getDevAccounts().then((d) => setAccounts(d.accounts)).catch(() => setAccounts([])); }, []);
-  if (!accounts) return null;
+const DEMO_DOMAIN = '@demo.transtrack.local';
+
+// Development-only sign-in form for the seeded demo accounts (shown when
+// DEV_LOGIN=true). Type the account email, or just the part before the @.
+// The browser suggests known accounts as you type.
+function DevSignInForm({ onSubmit, busy }) {
+  const [accounts, setAccounts] = useState([]);
+  const [email, setEmail] = useState('');
+  const [fieldError, setFieldError] = useState('');
+  useEffect(() => { getDevAccounts().then((d) => setAccounts(d.accounts)).catch(() => {}); }, []);
+
+  const describe = (a) => (a.superAdmin ? 'Platform admin'
+    : a.memberships.map((m) => `${ROLE_NAMES[m.role] || m.role} · ${m.organization}`).join(', '));
+
+  const submit = (e) => {
+    e.preventDefault();
+    const value = email.trim().toLowerCase();
+    if (!value) { setFieldError('Enter a demo account email.'); return; }
+    setFieldError('');
+    onSubmit(value.includes('@') ? value : `${value}${DEMO_DOMAIN}`);
+  };
+
   return (
-    <section className="mt-6 pt-5 border-t border-border" aria-labelledby="demo-title">
-      <h2 id="demo-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-        <KeyRound size={14} aria-hidden="true" /> Demo accounts · development only
+    <section className="mt-6 pt-5 border-t border-border" aria-labelledby="dev-title">
+      <h2 id="dev-title" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+        <KeyRound size={14} aria-hidden="true" /> Development sign-in
       </h2>
-      {accounts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No demo accounts yet. Run <code>npm run db:seed</code> in server/.</p>
-      ) : (
-        <ul className="flex flex-col gap-1.5 max-h-80 overflow-y-auto">
-          {accounts.map((a) => (
-            <li key={a.email}>
-              <button type="button" disabled={busy} onClick={() => onPick(a.email)}
-                className="w-full text-left px-3 py-2 rounded-lg border border-border hover:bg-muted transition-colors text-sm min-h-11">
-                <span className="block font-medium text-foreground">{a.name}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {a.superAdmin ? 'Platform admin' : a.memberships.map((m) => `${ROLE_NAMES[m.role] || m.role} · ${m.organization}`).join(', ')}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <form onSubmit={submit} noValidate className="flex flex-col gap-3">
+        <div>
+          <label htmlFor="dev-email" className="field-label">Account email</label>
+          <input
+            id="dev-email" type="text" inputMode="email" autoComplete="off" autoCapitalize="none" spellCheck={false}
+            list="dev-accounts" placeholder={`uni-admin${DEMO_DOMAIN}`} className="input-field"
+            aria-invalid={Boolean(fieldError)} aria-describedby="dev-email-hint dev-email-error"
+            value={email} onChange={(e) => { setEmail(e.target.value); setFieldError(''); }}
+          />
+          <datalist id="dev-accounts">
+            {accounts.map((a) => <option key={a.email} value={a.email} label={describe(a)} />)}
+          </datalist>
+          {fieldError
+            ? <p id="dev-email-error" role="alert" className="field-error">{fieldError}</p>
+            : (
+              <p id="dev-email-hint" className="field-hint">
+                For example <code>uni-admin</code>, <code>uni-driver</code>, <code>parent</code> or <code>platform</code>.
+                Only works on a development server.
+              </p>
+            )}
+        </div>
+        <button type="submit" disabled={busy} className="btn-secondary">{busy ? 'Signing in...' : 'Sign in'}</button>
+      </form>
     </section>
   );
 }
@@ -136,7 +159,7 @@ export default function Login() {
   return (
     <div className="min-h-dvh flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 sm:px-6 h-16" style={{ marginTop: 'env(safe-area-inset-top)' }}>
-        <Brand />
+        <Link to="/" aria-label="Transtrack Kenya home" className="rounded-lg"><Brand /></Link>
         <ThemeToggle />
       </header>
 
@@ -165,7 +188,7 @@ export default function Login() {
             Use the Google account your organisation invited. Not invited yet? Sign in, then ask your organisation for access.
           </p>
 
-          {config?.devLogin && <DemoAccounts onPick={handleDemo} busy={busy} />}
+          {config?.devLogin && <DevSignInForm onSubmit={handleDemo} busy={busy} />}
 
           {config?.legacyPasswordLogin && (
             <div className="mt-4 text-center">
