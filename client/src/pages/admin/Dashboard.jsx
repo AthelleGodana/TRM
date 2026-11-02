@@ -9,12 +9,14 @@ import ManageDrivers from './ManageDrivers';
 import ManageStudents from './ManageStudents';
 import Billing from './Billing';
 import Members from './Members';
+import FuelHub from './fuel/FuelHub';
 
 const PAGES = {
   routes: <ManageRoutes />,
   buses: <ManageBuses />,
   drivers: <ManageDrivers />,
   students: <ManageStudents />,
+  fuel: <FuelHub />,
   members: <Members />,
   billing: <Billing />,
 };
@@ -39,16 +41,15 @@ function Home() {
 
 // Staff area for ORG_ADMIN and FLEET_MANAGER. Each page is only routed when
 // its menu entry is visible to the current role and feature flags.
-export default function AdminDashboard({ onInstall, extraPages = {} }) {
+export default function AdminDashboard({ onInstall }) {
   const { session } = useAuth();
-  const pages = { ...PAGES, ...extraPages };
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-surface-dark bg-mesh-light dark:bg-mesh-dark">
       <Navbar title="Transport Hub" onInstall={onInstall} />
       <Routes>
         <Route index element={<Home />} />
-        {ADMIN_MENU.filter((item) => canSee(item, session) && pages[item.to]).map((item) => (
-          <Route key={item.to} path={`${item.to}/*`} element={pages[item.to]} />
+        {ADMIN_MENU.filter((item) => canSee(item, session) && PAGES[item.to]).map((item) => (
+          <Route key={item.to} path={`${item.to}/*`} element={PAGES[item.to]} />
         ))}
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
