@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'Transtrack Kenya',
         short_name: 'Transtrack',
-        description: 'Real-time school bus tracking for students, parents and school administrators across Kenya.',
+        description: 'Transport management and live tracking for universities, schools and companies across Kenya.',
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',
@@ -29,14 +29,13 @@ export default defineConfig({
         // Live data (auth, GPS, payments) always goes over the network —
         // it is never cached, since serving stale bus locations would be
         // actively misleading rather than just an inconvenience.
+        // API responses are tenant- and user-specific, so none are cached:
+        // a URL-keyed cache could show one organisation's data to another
+        // user of the same device. API and auth navigations (e.g. Google's
+        // redirect-mode sign-in post) always go to the network.
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/students/routes'),
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'tms-routes-cache' },
-          },
-        ],
+        navigateFallbackDenylist: [/^\/api\//],
+        cleanupOutdatedCaches: true,
       },
       devOptions: { enabled: false },
     }),

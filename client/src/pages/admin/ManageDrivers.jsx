@@ -16,7 +16,7 @@ export default function ManageDrivers() {
   useEffect(() => { load(); }, []);
 
   const filtered = useMemo(() => drivers.filter((d) =>
-    `${d.user.firstName} ${d.user.lastName} ${d.user.username}`.toLowerCase().includes(search.toLowerCase())
+    `${d.user.firstName} ${d.user.lastName} ${d.user.email}`.toLowerCase().includes(search.toLowerCase())
   ), [drivers, search]);
 
   const toggle = (id) => setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
@@ -44,7 +44,7 @@ export default function ManageDrivers() {
           <div key={d.id} className="p-3.5 text-sm flex items-center gap-3">
             <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggle(d.id)} />
             <button onClick={() => setActive(d)} className="flex-1 text-left text-gray-700 dark:text-gray-200">
-              {d.user.firstName} {d.user.lastName} <span className="text-gray-400">({d.user.username})</span>
+              {d.user.firstName} {d.user.lastName} <span className="text-gray-400">({d.user.email})</span>
             </button>
           </div>
         ))}
@@ -59,7 +59,7 @@ export default function ManageDrivers() {
         {active && (
           <div className="flex flex-col gap-3 text-sm">
             <div><span className="text-gray-400">Name</span><p className="font-medium text-gray-800 dark:text-gray-100">{active.user.firstName} {active.user.lastName}</p></div>
-            <div><span className="text-gray-400">Username</span><p>{active.user.username}</p></div>
+            <div><span className="text-gray-400">Email</span><p>{active.user.email}</p></div>
           </div>
         )}
       </Drawer>

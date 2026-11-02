@@ -87,7 +87,7 @@ export const listBuses = asyncHandler(async (req, res) => {
 // ── Drivers & students ──────────────────────────────────────────────────
 export const listDrivers = asyncHandler(async (req, res) => {
   const drivers = await prisma.driver.findMany({
-    include: { user: { select: { firstName: true, lastName: true, username: true } } },
+    include: { user: { select: { firstName: true, lastName: true, email: true } } },
   });
   res.json({ drivers });
 });
@@ -95,7 +95,7 @@ export const listDrivers = asyncHandler(async (req, res) => {
 export const listStudents = asyncHandler(async (req, res) => {
   const students = await prisma.student.findMany({
     include: {
-      user: { select: { firstName: true, lastName: true, username: true } },
+      user: { select: { firstName: true, lastName: true, email: true } },
       route: true,
     },
   });
@@ -148,7 +148,7 @@ export const listAllPayments = asyncHandler(async (req, res) => {
     where: status ? { status } : undefined,
     include: {
       student: {
-        include: { user: { select: { firstName: true, lastName: true, username: true } } },
+        include: { user: { select: { firstName: true, lastName: true, email: true } } },
       },
     },
     orderBy: { createdAt: 'desc' },

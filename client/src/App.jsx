@@ -8,7 +8,9 @@ import InstallPrompt from './components/common/InstallPrompt';
 import ToastContainer from './components/common/ToastContainer';
 
 import Login from './pages/Login';
-import Signup from './pages/Signup';
+import AuthCallback from './pages/AuthCallback';
+import Onboarding from './pages/Onboarding';
+import PlatformDashboard from './pages/platform/Dashboard';
 import StudentDashboard from './pages/student/Dashboard';
 import DriverDashboard from './pages/driver/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -39,7 +41,17 @@ return (
           <AnimatePresence mode="wait">
             <Routes>
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
-              <Route path="/signup" element={<PageTransition><Signup /></PageTransition>} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/onboarding" element={<PageTransition><Onboarding /></PageTransition>} />
+
+              <Route
+                path="/platform/*"
+                element={
+                  <ProtectedRoute roles={['SUPER_ADMIN']}>
+                    <PlatformDashboard onInstall={handleInstallRequest} />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route
                 path="/student/*"

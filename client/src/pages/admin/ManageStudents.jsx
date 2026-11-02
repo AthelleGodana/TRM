@@ -21,7 +21,7 @@ export default function ManageStudents() {
   useEffect(() => { load(); }, []);
 
   const filtered = useMemo(() => students.filter((s) => {
-    const name = `${s.user.firstName} ${s.user.lastName} ${s.user.username}`.toLowerCase();
+    const name = `${s.user.firstName} ${s.user.lastName} ${s.user.email}`.toLowerCase();
     const matchesSearch = name.includes(search.toLowerCase());
     const matchesTier = !tierFilter || s.paymentTier === tierFilter;
     return matchesSearch && matchesTier;
@@ -84,7 +84,7 @@ export default function ManageStudents() {
         {active && (
           <div className="flex flex-col gap-3 text-sm">
             <div><span className="text-gray-400">Name</span><p className="font-medium text-gray-800 dark:text-gray-100">{active.user.firstName} {active.user.lastName}</p></div>
-            <div><span className="text-gray-400">Username</span><p>{active.user.username}</p></div>
+            <div><span className="text-gray-400">Email</span><p>{active.user.email}</p></div>
             <div><span className="text-gray-400">Payment tier</span><p><StatusBadge variant={TIER_VARIANT[active.paymentTier]}>{active.paymentTier}</StatusBadge></p></div>
             <div><span className="text-gray-400">Route</span><p>{active.route?.name || 'Not registered'}</p></div>
             <div><span className="text-gray-400">Phone</span><p>{active.phone || '—'}</p></div>

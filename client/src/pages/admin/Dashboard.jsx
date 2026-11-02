@@ -1,26 +1,32 @@
-import { Link, Routes, Route } from 'react-router-dom';
+import { Link, Routes, Route, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Navbar from '../../components/common/Navbar';
+import { useAuth } from '../../context/AuthContext';
+import { ADMIN_MENU, canSee, visibleMenu } from '../../config/navigation';
 import ManageRoutes from './ManageRoutes';
 import ManageBuses from './ManageBuses';
 import ManageDrivers from './ManageDrivers';
 import ManageStudents from './ManageStudents';
 import Billing from './Billing';
+import Members from './Members';
 
-const CARDS = [
-  { to: 'routes', label: 'Routes & Stops', icon: '🗺️', gradient: 'from-primary-500 to-accent-cyan' },
-  { to: 'buses', label: 'Fleet Management', icon: '🚌', gradient: 'from-accent-violet to-primary-600' },
-  { to: 'drivers', label: 'Drivers', icon: '🧑‍✈️', gradient: 'from-emerald-500 to-accent-cyan' },
-  { to: 'students', label: 'Students', icon: '🎓', gradient: 'from-accent-amber to-rose-500' },
-  { to: 'billing', label: 'Billing & Revenue', icon: '💰', gradient: 'from-rose-500 to-accent-violet', wide: true },
-];
+const PAGES = {
+  routes: <ManageRoutes />,
+  buses: <ManageBuses />,
+  drivers: <ManageDrivers />,
+  students: <ManageStudents />,
+  members: <Members />,
+  billing: <Billing />,
+};
 
 function Home() {
+  const { session } = useAuth();
+  const cards = visibleMenu(ADMIN_MENU, session);
   return (
     <div className="p-4 pb-8 grid grid-cols-2 gap-3 max-w-2xl mx-auto">
-      {CARDS.map((c, i) => (
+      {cards.map((c, i) => (
         <motion.div key={c.to} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-          className={c.wide ? 'col-span-2' : ''}>
+          className={cards.length % 2 === 1 && i === cards.length - 1 ? 'col-span-2' : ''}>
           <Link to={c.to} className={`block bg-gradient-to-br ${c.gradient} text-white rounded-2xl p-5 text-center shadow-lg hover:brightness-110 active:scale-[0.97] transition-all`}>
             <div className="text-2xl mb-2">{c.icon}</div>
             <div className="text-sm font-semibold">{c.label}</div>
@@ -31,17 +37,20 @@ function Home() {
   );
 }
 
-export default function AdminDashboard({ onInstall }) {
+// Staff area for ORG_ADMIN and FLEET_MANAGER. Each page is only routed when
+// its menu entry is visible to the current role and feature flags.
+export default function AdminDashboard({ onInstall, extraPages = {} }) {
+  const { session } = useAuth();
+  const pages = { ...PAGES, ...extraPages };
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-surface-dark bg-mesh-light dark:bg-mesh-dark">
-      <Navbar title="Institutional Transport Hub" onInstall={onInstall} />
+      <Navbar title="Transport Hub" onInstall={onInstall} />
       <Routes>
         <Route index element={<Home />} />
-        <Route path="routes" element={<ManageRoutes />} />
-        <Route path="buses" element={<ManageBuses />} />
-        <Route path="drivers" element={<ManageDrivers />} />
-        <Route path="students" element={<ManageStudents />} />
-        <Route path="billing" element={<Billing />} />
+        {ADMIN_MENU.filter((item) => canSee(item, session) && pages[item.to]).map((item) => (
+          <Route key={item.to} path={`${item.to}/*`} element={pages[item.to]} />
+        ))}
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </div>
   );

@@ -13,7 +13,7 @@ export const getProfile = asyncHandler(async (req, res) => {
       arrivePickupPoint: true,
       departPickupPoint: true,
       route: true,
-      user: { select: { firstName: true, lastName: true, username: true } },
+      user: { select: { firstName: true, lastName: true, email: true } },
     },
   });
   if (!student) return res.status(404).json({ error: 'Student profile not found.' });

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, LogOut, Download } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import OrgSwitcher from './OrgSwitcher';
 import { homeForRole } from '../../config/roles';
 
 export default function Navbar({ title, onInstall }) {
@@ -10,13 +11,11 @@ export default function Navbar({ title, onInstall }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
-
-  
   // Determine the role home path for the back button fallback.
   const homePath = user ? homeForRole(user.role) : '/';
 
@@ -51,9 +50,12 @@ export default function Navbar({ title, onInstall }) {
           <span className="w-10 h-10 min-w-10 rounded-xl bg-gradient-to-br from-primary-600 to-accent-violet flex items-center justify-center text-xl shadow-glow">
             🚌
           </span>
-          <span className="font-bold text-gray-800 dark:text-gray-100 tracking-tight text-[17px] leading-tight truncate">
-            Transtrack Kenya
-          </span>
+          <div className="min-w-0">
+            <span className="block font-bold text-gray-800 dark:text-gray-100 tracking-tight text-[17px] leading-tight truncate">
+              Transtrack Kenya
+            </span>
+            <OrgSwitcher />
+          </div>
         </div>
       </div>
 
