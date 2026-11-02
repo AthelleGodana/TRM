@@ -1,69 +1,26 @@
 import bcrypt from 'bcryptjs';
 import { systemPrisma as prisma } from '../config/db.js';
+import { env } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { signAccessToken } from '../services/token.service.js';
+import { activeMemberships } from '../services/membership.service.js';
 
-const PUBLIC_ROLES = { student: 'STUDENT', driver: 'DRIVER' };
+// Legacy username/password endpoints. Sign-in is now Google-only:
+// existing users are migrated by email on their first Google sign-in.
+// LEGACY_PASSWORD_LOGIN=true temporarily re-enables password login during
+// a migration window; self-registration is gone for good (people now
+// request access or are invited).
 
-// Picks the organisation a user lands in: the most recently used active
-// membership, falling back to the oldest.
-async function pickMembership(userId) {
-  const memberships = await prisma.membership.findMany({
-    where: { userId, organization: { status: 'ACTIVE' } },
-    include: { organization: true },
-    orderBy: [{ lastUsedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
-  });
-  return memberships[0] || null;
-}
+const GONE = 'Password sign-in has been replaced by Sign in with Google.';
 
-export const register = asyncHandler(async (req, res) => {
-  const { username, password, firstName, lastName, role } = req.body;
-
-  if (!username || username.length < 3) {
-    return res.status(400).json({ error: 'Username must be at least 3 characters.' });
-  }
-  if (!password || password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-  }
-  if (!firstName || !lastName) {
-    return res.status(400).json({ error: 'First and last name are required.' });
-  }
-  if (!PUBLIC_ROLES[role]) {
-    return res.status(400).json({ error: 'Invalid role selected.' });
-  }
-
-  // Legacy self-registration only exists for the migrated default organisation.
-  const org = await prisma.organization.findUnique({ where: { slug: 'default' } });
-  if (!org) {
-    return res.status(400).json({ error: 'Self-registration is not available. Ask your organisation for an invitation.' });
-  }
-
-  const existing = await prisma.user.findUnique({ where: { username } });
-  if (existing) {
-    return res.status(409).json({ error: 'Username already taken.' });
-  }
-
-  const hashed = await bcrypt.hash(password, 10);
-
-  const user = await prisma.user.create({
-    data: {
-      username, password: hashed, firstName, lastName,
-      memberships: { create: { organizationId: org.id, role: PUBLIC_ROLES[role] } },
-    },
-  });
-
-  if (role === 'student') {
-    await prisma.student.create({ data: { userId: user.id, organizationId: org.id } });
-  } else if (role === 'driver') {
-    await prisma.driver.create({ data: { userId: user.id, organizationId: org.id } });
-  }
-
-  res.status(201).json({ message: 'Registration successful. Please log in.' });
-});
+export const register = (req, res) => {
+  res.status(410).json({ error: 'Self-registration has been replaced. Sign in with Google to request access or register your organisation.' });
+};
 
 export const login = asyncHandler(async (req, res) => {
-  const { username, password } = req.body;
+  if (!env.legacyPasswordLogin) return res.status(410).json({ error: GONE });
 
+  const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required.' });
   }
@@ -73,7 +30,7 @@ export const login = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Invalid username or password.' });
   }
 
-  const membership = await pickMembership(user.id);
+  const [membership] = await activeMemberships(user.id);
   if (!membership) {
     return res.status(403).json({ error: 'Your account is not linked to an active organisation.' });
   }
@@ -81,16 +38,5 @@ export const login = asyncHandler(async (req, res) => {
   const token = signAccessToken({
     userId: user.id, organizationId: membership.organizationId, role: membership.role,
   });
-
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: membership.role,
-      organizationId: membership.organizationId,
-    },
-  });
+  res.json({ token });
 });
