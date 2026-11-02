@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import ErrorMessage from '../components/common/ErrorMessage';
 import ThemeToggle from '../components/common/ThemeToggle';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
-import { getAuthConfig } from '../services/auth.service';
+import { getAuthConfig, getDevAccounts } from '../services/auth.service';
 import { homeForRole } from '../config/roles';
 
 // Errors the server can hand back after a redirect-mode sign-in.
@@ -46,8 +46,41 @@ function LegacyPasswordForm({ onSignedIn, onError }) {
   );
 }
 
+const ROLE_NAMES = {
+  ORG_ADMIN: 'Organisation admin', FLEET_MANAGER: 'Transport officer', DRIVER: 'Driver', STUDENT: 'Student', PARENT: 'Parent',
+};
+
+// Development-only list of seeded demo users (shown when DEV_LOGIN=true).
+function DemoAccounts({ onPick, busy }) {
+  const [accounts, setAccounts] = useState(null);
+  useEffect(() => { getDevAccounts().then((d) => setAccounts(d.accounts)).catch(() => setAccounts([])); }, []);
+  if (!accounts) return null;
+  return (
+    <div className="mt-6">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Demo accounts · development only</p>
+      {accounts.length === 0 ? (
+        <p className="text-xs text-gray-500">No demo accounts yet. Run <code>npm run db:seed</code> in server/.</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {accounts.map((a) => (
+            <li key={a.email}>
+              <button type="button" disabled={busy} onClick={() => onPick(a.email)}
+                className="w-full text-left px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-900/5 dark:hover:bg-white/5 text-sm min-h-11">
+                <span className="block font-medium text-gray-800 dark:text-gray-100">{a.name}</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">
+                  {a.superAdmin ? 'Platform admin' : a.memberships.map((m) => `${ROLE_NAMES[m.role] || m.role} · ${m.organization}`).join(', ')}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function Login() {
-  const { signInWithGoogle, session } = useAuth();
+  const { signInWithGoogle, devLogin, session } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [config, setConfig] = useState(null);
@@ -65,11 +98,14 @@ export default function Login() {
 
   const goHome = (s) => navigate(homeForRole(s.role), { replace: true });
 
-  const handleCredential = async (credential) => {
+  const handleCredential = (credential) => complete(() => signInWithGoogle(credential));
+  const handleDemo = (email) => complete(() => devLogin(email));
+
+  const complete = async (signIn) => {
     setError('');
     setBusy(true);
     try {
-      const result = await signInWithGoogle(credential);
+      const result = await signIn();
       if (result.status === 'ACTIVE') return goHome(result.session);
       if (result.status === 'NEEDS_ONBOARDING') {
         return navigate('/onboarding', { state: { token: result.onboardingToken, user: result.user } });
@@ -99,16 +135,22 @@ export default function Login() {
 
         <ErrorMessage message={error} />
 
-        {config ? (
+        {!config ? (
+          <div className="h-11 rounded-full skeleton" />
+        ) : config.googleClientId ? (
           <GoogleSignInButton clientId={config.googleClientId} onCredential={handleCredential} onError={setError} />
         ) : (
-          <div className="h-11 rounded-full skeleton" />
+          <p className="text-sm text-center text-amber-700 dark:text-amber-400">
+            Google sign-in isn't set up on this server yet. Set GOOGLE_CLIENT_ID (see README: “Creating the Google OAuth client”).
+          </p>
         )}
         {busy && <p className="text-xs text-center text-gray-400 mt-3">Signing you in...</p>}
 
         <p className="text-xs text-center text-gray-400 mt-5 leading-relaxed">
           Use the Google account your organisation invited. New here? Sign in and you can request access or register your organisation.
         </p>
+
+        {config?.devLogin && <DemoAccounts onPick={handleDemo} busy={busy} />}
 
         {config?.legacyPasswordLogin && (
           <div className="mt-4 text-center">

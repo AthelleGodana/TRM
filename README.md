@@ -88,11 +88,13 @@ cp .env.example server/.env          # set the three DATABASE URLs to localhost
 docker compose up -d postgres
 cd server && npm install
 npm run db:deploy                    # prisma migrate deploy + create DB roles
-npm run db:seed                      # optional: demo organisation (set SEED_ADMIN_EMAIL)
+npm run db:seed                      # demo organisations and demo users for every role
 npm run dev
 # optional, to call the AI stub from the host:
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d ai-fuel-service
 ```
+
+**Signing in locally without Google:** set `DEV_LOGIN=true` in `server/.env` and run `npm run db:seed`. The sign-in page then lists the demo users (`@demo.transtrack.local`): platform admin; Demo University admin, transport officer, driver and student; Demo Academy admin, driver and parent. Dev login only accepts those demo emails and is hard-disabled when `NODE_ENV=production`.
 
 If `DATABASE_URL` connects as a superuser or a `BYPASSRLS` role, the server warns in development and **refuses to start in production**, because row-level security would not apply.
 

@@ -11,6 +11,10 @@ const bool = (value, fallback) => (value == null || value === '' ? fallback : va
 const int = (value, fallback) => (value ? Number.parseInt(value, 10) : fallback);
 const lower = (value) => (value ? value.trim().toLowerCase() : null);
 
+if (nodeEnv === 'production' && process.env.DEV_LOGIN === 'true') {
+  throw new Error('DEV_LOGIN must not be enabled in production.');
+}
+
 export const env = {
   port: process.env.PORT || 5000,
   nodeEnv,
@@ -28,6 +32,9 @@ export const env = {
   superAdminEmail: lower(process.env.SUPER_ADMIN_EMAIL),
   defaultOrgAdminEmail: lower(process.env.DEFAULT_ORG_ADMIN_EMAIL),
   legacyPasswordLogin: bool(process.env.LEGACY_PASSWORD_LOGIN, false),
+  // Development-only "sign in as a demo user" for seeded @demo.transtrack.local
+  // accounts. Refused in production (see the check below).
+  devLogin: bool(process.env.DEV_LOGIN, false),
 
   fuel: {
     // 'null' (default) or 'http'. 'http' is only used for organisations

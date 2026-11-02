@@ -2,7 +2,7 @@ import { systemPrisma as db } from '../config/db.js';
 import { env } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { verifyGoogleIdToken } from '../services/google.service.js';
-import { signInWithGoogle } from '../services/signin.service.js';
+import { signInWithGoogle, resolveSignInOutcome } from '../services/signin.service.js';
 import { activeMemberships } from '../services/membership.service.js';
 import {
   REFRESH_COOKIE, clearRefreshCookie, describeSession, issueSession, membershipForRefresh,
@@ -14,12 +14,9 @@ const OUTCOME_ERRORS = {
   ORG_SUSPENDED: 'Your organisation has been suspended. Contact your administrator.',
 };
 
-// Runs Google sign-in and returns { status, httpStatus, body } describing
-// the outcome. A refresh cookie is set only for a successful session.
-async function completeGoogleSignIn(res, credential) {
-  const profile = await verifyGoogleIdToken(credential);
-  const outcome = await signInWithGoogle(profile);
-
+// Turns a sign-in outcome into { status, httpStatus, body }. A refresh
+// cookie is set only for a successful session.
+async function respondToOutcome(res, outcome) {
   if (outcome.status === 'PLATFORM' || outcome.status === 'ACTIVE') {
     const { accessToken, session } = await issueSession(res, outcome);
     return { status: 'ACTIVE', httpStatus: 200, body: { status: 'ACTIVE', accessToken, session } };
@@ -40,6 +37,11 @@ async function completeGoogleSignIn(res, credential) {
     httpStatus: 403,
     body: { status: outcome.status, code: outcome.status, error: OUTCOME_ERRORS[outcome.status] },
   };
+}
+
+async function completeGoogleSignIn(res, credential) {
+  const profile = await verifyGoogleIdToken(credential);
+  return respondToOutcome(res, await signInWithGoogle(profile));
 }
 
 // POST /auth/google — { credential } from Google Identity Services (popup / One Tap).
@@ -136,7 +138,53 @@ export const me = asyncHandler(async (req, res) => {
   res.json({ session: await describeSession(user, membership) });
 });
 
+// ── Development-only demo login ───────────────────────────────────────
+// Lets developers sign in as seeded demo users without a Google client.
+// Hidden (404) unless DEV_LOGIN=true outside production, and limited to
+// @demo.transtrack.local accounts, so it can never reach a real account.
+export const DEMO_EMAIL_DOMAIN = '@demo.transtrack.local';
+const devLoginEnabled = () => env.devLogin && env.nodeEnv !== 'production';
+
+export function requireDevLogin(req, res, next) {
+  if (!devLoginEnabled()) return res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found.` });
+  next();
+}
+
+// GET /auth/dev-accounts — the seeded demo users to choose from.
+export const listDevAccounts = asyncHandler(async (req, res) => {
+  const users = await db.user.findMany({
+    where: { email: { endsWith: DEMO_EMAIL_DOMAIN } },
+    include: { memberships: { include: { organization: { select: { name: true, status: true } } } } },
+    orderBy: { email: 'asc' },
+  });
+  res.json({
+    accounts: users.map((u) => ({
+      email: u.email,
+      name: u.name || `${u.firstName} ${u.lastName}`.trim(),
+      superAdmin: u.isSuperAdmin,
+      memberships: u.memberships.map((m) => ({ organization: m.organization.name, role: m.role })),
+    })),
+  });
+});
+
+// POST /auth/dev-login — { email } of a demo user. Same session handling
+// (cookie, rotation, pending/suspended checks) as Google sign-in.
+export const devLogin = asyncHandler(async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!email.endsWith(DEMO_EMAIL_DOMAIN)) {
+    return res.status(403).json({ error: 'Only demo accounts can use development sign-in.' });
+  }
+  const user = await db.user.findUnique({ where: { email } });
+  if (!user) return res.status(404).json({ error: 'Demo account not found. Run npm run db:seed.' });
+  const result = await respondToOutcome(res, await resolveSignInOutcome(user));
+  res.status(result.httpStatus).json(result.body);
+});
+
 // GET /auth/config — public settings the sign-in page needs.
 export const publicConfig = (req, res) => {
-  res.json({ googleClientId: env.googleClientId, legacyPasswordLogin: env.legacyPasswordLogin });
+  res.json({
+    googleClientId: env.googleClientId,
+    legacyPasswordLogin: env.legacyPasswordLogin,
+    devLogin: devLoginEnabled(),
+  });
 };

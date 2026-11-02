@@ -80,7 +80,12 @@ async function acceptInvitations(user) {
 export async function signInWithGoogle(profile) {
   const user = await upsertGoogleUser(profile);
   await acceptInvitations(user);
+  return resolveSignInOutcome(user);
+}
 
+// The outcome for an already-identified user (shared by Google sign-in and
+// the development-only demo login).
+export async function resolveSignInOutcome(user) {
   if (user.isSuperAdmin) return { status: 'PLATFORM', user };
 
   const active = await activeMemberships(user.id);

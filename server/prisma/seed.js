@@ -1,7 +1,10 @@
-// Development seed: one active demo organisation with a route, stops and a
-// bus. People sign in with Google, so the seed creates memberships keyed by
-// email; set SEED_ADMIN_EMAIL (and optionally SEED_DRIVER_EMAIL /
-// SEED_STUDENT_EMAIL) to Google accounts you control, then sign in.
+// Development seed. Idempotent: safe to run repeatedly.
+//
+// Creates two active demo organisations with routes, buses and demo users
+// for every role. Demo users have @demo.transtrack.local emails and can be
+// signed in with the development-only demo login (DEV_LOGIN=true). Set
+// SEED_ADMIN_EMAIL / SEED_DRIVER_EMAIL / SEED_STUDENT_EMAIL to real Google
+// accounts to also sign in to Demo University with Google.
 // Runs as the owner connection (DIRECT_DATABASE_URL), so RLS does not apply.
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
@@ -12,66 +15,121 @@ const prisma = new PrismaClient({
   datasources: { db: { url: process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL } },
 });
 
+const DEMO = '@demo.transtrack.local';
+
+async function upsertUser(email, firstName, lastName, extra = {}) {
+  const normalized = email.trim().toLowerCase();
+  return prisma.user.upsert({
+    where: { email: normalized },
+    update: extra,
+    create: { email: normalized, firstName, lastName, name: `${firstName} ${lastName}`, ...extra },
+  });
+}
+
 async function member(org, email, role, firstName, lastName) {
   if (!email) return null;
-  const normalized = email.trim().toLowerCase();
-  const user = await prisma.user.upsert({
-    where: { email: normalized },
-    update: {},
-    create: { email: normalized, firstName, lastName },
-  });
+  const user = await upsertUser(email, firstName, lastName);
   await prisma.membership.upsert({
     where: { userId_organizationId: { userId: user.id, organizationId: org.id } },
     update: { role },
     create: { userId: user.id, organizationId: org.id, role },
   });
   const key = { organizationId_userId: { organizationId: org.id, userId: user.id } };
-  if (role === 'DRIVER') return prisma.driver.upsert({ where: key, update: {}, create: { organizationId: org.id, userId: user.id } });
-  if (role === 'STUDENT') return prisma.student.upsert({ where: key, update: {}, create: { organizationId: org.id, userId: user.id, paymentTier: 'ADAMS' } });
-  return null;
+  let profile = null;
+  if (role === 'DRIVER') profile = await prisma.driver.upsert({ where: key, update: {}, create: { organizationId: org.id, userId: user.id } });
+  if (role === 'STUDENT') profile = await prisma.student.upsert({ where: key, update: {}, create: { organizationId: org.id, userId: user.id, paymentTier: 'ADAMS' } });
+  return { user, profile };
+}
+
+async function organization(slug, data) {
+  return prisma.organization.upsert({
+    where: { slug },
+    update: {},
+    create: { slug, status: 'ACTIVE', approvedAt: new Date(), ...data },
+  });
+}
+
+async function routeWithStops(org, name, stops) {
+  const existing = await prisma.route.findFirst({ where: { organizationId: org.id, name }, include: { pickupPoints: true } });
+  if (existing) return existing;
+  return prisma.route.create({
+    data: {
+      organizationId: org.id, name, schoolArrival: '07:00', schoolDeparture: '16:00',
+      pickupPoints: { create: stops.map((s, i) => ({ organizationId: org.id, order: i, ...s })) },
+    },
+    include: { pickupPoints: true },
+  });
+}
+
+async function bus(org, licensePlate, routeId, driverId) {
+  return prisma.bus.upsert({
+    where: { organizationId_licensePlate: { organizationId: org.id, licensePlate } },
+    update: {},
+    create: { organizationId: org.id, licensePlate, capacity: 33, routeId, driverId: driverId ?? null },
+  });
 }
 
 async function main() {
-  const org = await prisma.organization.upsert({
-    where: { slug: 'demo-university' },
-    update: {},
-    create: {
-      name: 'Demo University', slug: 'demo-university', profile: 'UNIVERSITY', status: 'ACTIVE',
-      approvedAt: new Date(), fuelHubEnabled: true,
-    },
+  // ── Platform ──────────────────────────────────────────────────────────
+  await upsertUser(`platform${DEMO}`, 'Platform', 'Admin', { isSuperAdmin: true });
+
+  // ── Demo University ───────────────────────────────────────────────────
+  const uni = await organization('demo-university', {
+    name: 'Demo University', profile: 'UNIVERSITY', fuelHubEnabled: true,
   });
+  await member(uni, `uni-admin${DEMO}`, 'ORG_ADMIN', 'Amina', 'Odhiambo');
+  await member(uni, `uni-officer${DEMO}`, 'FLEET_MANAGER', 'Brian', 'Kiptoo');
+  const uniDriver = await member(uni, `uni-driver${DEMO}`, 'DRIVER', 'John', 'Mwangi');
+  const uniStudent = await member(uni, `uni-student${DEMO}`, 'STUDENT', 'Jane', 'Wanjiku');
+  await member(uni, process.env.SEED_ADMIN_EMAIL, 'ORG_ADMIN', 'Demo', 'Admin');
+  await member(uni, process.env.SEED_DRIVER_EMAIL, 'DRIVER', 'Demo', 'Driver');
+  await member(uni, process.env.SEED_STUDENT_EMAIL, 'STUDENT', 'Demo', 'Student');
 
-  await member(org, process.env.SEED_ADMIN_EMAIL, 'ORG_ADMIN', 'Demo', 'Admin');
-  const driver = await member(org, process.env.SEED_DRIVER_EMAIL, 'DRIVER', 'John', 'Mwangi');
-  await member(org, process.env.SEED_STUDENT_EMAIL, 'STUDENT', 'Jane', 'Doe');
-
-  let route = await prisma.route.findFirst({ where: { organizationId: org.id, name: 'Route A - Westlands' } });
-  if (!route) {
-    route = await prisma.route.create({
-      data: {
-        organizationId: org.id,
-        name: 'Route A - Westlands',
-        schoolArrival: '07:00',
-        schoolDeparture: '16:00',
-        pickupPoints: {
-          create: [
-            { organizationId: org.id, name: 'Town Stage', tier: 'TOWN', order: 0 },
-            { organizationId: org.id, name: 'Lavington Mall', tier: 'LAVINGTON', order: 1 },
-            { organizationId: org.id, name: 'Adams Arcade', tier: 'ADAMS', order: 2 },
-          ],
-        },
-      },
+  const uniRoute = await routeWithStops(uni, 'Route A - Westlands', [
+    { name: 'Town Stage', tier: 'TOWN', lat: -1.2864, lng: 36.8172 },
+    { name: 'Lavington Mall', tier: 'LAVINGTON', lat: -1.2780, lng: 36.7700 },
+    { name: 'Adams Arcade', tier: 'ADAMS', lat: -1.3000, lng: 36.7800 },
+  ]);
+  const uniBus = await bus(uni, 'KDA 123X', uniRoute.id, uniDriver.profile.id);
+  await prisma.student.update({
+    where: { id: uniStudent.profile.id },
+    data: { routeId: uniRoute.id, arrivePickupPointId: uniRoute.pickupPoints[0].id },
+  });
+  if (!(await prisma.vehicleFuelProfile.findFirst({ where: { busId: uniBus.id } }))) {
+    await prisma.vehicleFuelProfile.create({
+      data: { organizationId: uni.id, busId: uniBus.id, fuelType: 'DIESEL', tankCapacityLitres: 200, expectedConsumptionL100km: 24 },
     });
   }
 
-  await prisma.bus.upsert({
-    where: { organizationId_licensePlate: { organizationId: org.id, licensePlate: 'KDA 123X' } },
+  // ── Demo School ───────────────────────────────────────────────────────
+  const school = await organization('demo-school', { name: 'Demo Academy', profile: 'SCHOOL' });
+  await member(school, `school-admin${DEMO}`, 'ORG_ADMIN', 'Grace', 'Achieng');
+  const schoolDriver = await member(school, `school-driver${DEMO}`, 'DRIVER', 'Peter', 'Otieno');
+  const parent = await member(school, `parent${DEMO}`, 'PARENT', 'Mary', 'Njeri');
+
+  const schoolRoute = await routeWithStops(school, 'Karen Loop', [
+    { name: 'Karen Shopping Centre', tier: 'TOWN', lat: -1.3197, lng: 36.7076 },
+    { name: 'Hardy Estate', tier: 'TOWN', lat: -1.3400, lng: 36.7400 },
+  ]);
+  await bus(school, 'KCB 456Y', schoolRoute.id, schoolDriver.profile.id);
+
+  let pupil = await prisma.student.findFirst({ where: { organizationId: school.id, userId: null, firstName: 'Baraka' } });
+  if (!pupil) {
+    pupil = await prisma.student.create({
+      data: {
+        organizationId: school.id, firstName: 'Baraka', lastName: 'Njeri',
+        routeId: schoolRoute.id, arrivePickupPointId: schoolRoute.pickupPoints[0].id,
+      },
+    });
+  }
+  await prisma.passengerGuardian.upsert({
+    where: { organizationId_studentId_userId: { organizationId: school.id, studentId: pupil.id, userId: parent.user.id } },
     update: {},
-    create: { organizationId: org.id, licensePlate: 'KDA 123X', capacity: 33, routeId: route.id, driverId: driver?.id ?? null },
+    create: { organizationId: school.id, studentId: pupil.id, userId: parent.user.id },
   });
 
-  console.log(`Seed complete: organisation "${org.name}" (code ${org.slug}).`);
-  if (!process.env.SEED_ADMIN_EMAIL) console.log('Set SEED_ADMIN_EMAIL to a Google account to sign in as its admin.');
+  console.log('Seed complete: Demo University (code demo-university) and Demo Academy (code demo-school).');
+  console.log(`Demo accounts use ${DEMO}; sign in with them when DEV_LOGIN=true.`);
 }
 
 main()

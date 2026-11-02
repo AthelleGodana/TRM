@@ -3,6 +3,7 @@ import { refreshSession, setSessionExpiredHandler } from '../services/api';
 import { setAccessToken } from '../services/tokenStore';
 import {
   signInWithGoogle as googleSignIn, logoutSession, switchOrganization as switchOrg, loginUser, fetchMe,
+  devLoginRequest,
 } from '../services/auth.service';
 
 const AuthContext = createContext(null);
@@ -39,6 +40,13 @@ export function AuthProvider({ children }) {
     return result;
   };
 
+  // Development-only demo login; same outcome shape as Google sign-in.
+  const devLogin = async (email) => {
+    const result = await devLoginRequest(email);
+    if (result.status === 'ACTIVE') applySession(result);
+    return result;
+  };
+
   const switchOrganization = async (organizationId) => applySession(await switchOrg(organizationId));
 
   const logout = async () => {
@@ -66,7 +74,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      session, user, loading, signInWithGoogle, switchOrganization, logout, restore, loginWithPassword,
+      session, user, loading, signInWithGoogle, devLogin, switchOrganization, logout, restore, loginWithPassword,
     }}>
       {children}
     </AuthContext.Provider>

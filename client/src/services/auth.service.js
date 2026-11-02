@@ -24,5 +24,15 @@ export const requestAccess = (token, body) =>
 export const registerOrganization = (token, body) =>
   api.post('/onboarding/organizations', body, onboarding(token)).then((r) => r.data);
 
+// Development-only demo login (server must run with DEV_LOGIN=true).
+export const getDevAccounts = () => api.get('/auth/dev-accounts').then((r) => r.data);
+export const devLoginRequest = (email) =>
+  api.post('/auth/dev-login', { email })
+    .then((r) => r.data)
+    .catch((err) => {
+      if (err.response?.status === 403 && err.response.data?.status) return err.response.data;
+      throw err;
+    });
+
 // Legacy username/password login, only offered while LEGACY_PASSWORD_LOGIN is on.
 export const loginUser = (payload) => api.post('/auth/login', payload).then((r) => r.data);
