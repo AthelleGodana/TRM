@@ -1,4 +1,4 @@
-import prisma from '../config/db.js';
+import prisma, { tenantTransaction } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { isStaff } from '../config/roles.js';
 import { findDriverBus as getBusForDriver } from '../services/busAccess.js';
@@ -49,15 +49,37 @@ export const addVehicleLog = asyncHandler(async (req, res) => {
     busId = bus.id;
   }
 
-  const log = await prisma.vehicleLog.create({
-    data: {
-      busId,
-      type,
-      fuelLiters: fuelLiters ? Number(fuelLiters) : null,
-      fuelCost: fuelCost ? Number(fuelCost) : null,
-      odometer: odometer ? Number(odometer) : null,
-      notes,
-    },
+  const log = await tenantTransaction(async (tx) => {
+    const created = await tx.vehicleLog.create({
+      data: {
+        busId,
+        type,
+        fuelLiters: fuelLiters ? Number(fuelLiters) : null,
+        fuelCost: fuelCost ? Number(fuelCost) : null,
+        odometer: odometer ? Number(odometer) : null,
+        notes,
+      },
+    });
+    // Fuel logged through the existing vehicle log also lands in the Fuel
+    // Hub, so both views stay in step. VehicleLog itself is unchanged.
+    if (type === 'FUEL' && created.fuelLiters > 0) {
+      const bus = await tx.bus.findUnique({ where: { id: busId } });
+      await tx.fuelRecord.create({
+        data: {
+          busId,
+          driverId: bus?.driverId ?? null,
+          litres: created.fuelLiters,
+          totalCost: created.fuelCost,
+          pricePerLitre: created.fuelCost ? Math.round((Number(created.fuelCost) / created.fuelLiters) * 100) / 100 : null,
+          odometer: created.odometer,
+          notes: created.notes,
+          filledAt: created.createdAt,
+          createdById: req.user.id,
+          legacyVehicleLogId: created.id,
+        },
+      });
+    }
+    return created;
   });
   res.status(201).json({ log });
 });

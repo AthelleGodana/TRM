@@ -1,7 +1,5 @@
 // Centralised error handler. Any error passed to next(err) lands here.
 export function errorHandler(err, req, res, next) {
-  if (!err.status || err.status >= 500) console.error(err);
-
   if (err.code === 'P2002') {
     return res.status(409).json({ error: 'A record with that value already exists.' });
   }
@@ -12,6 +10,7 @@ export function errorHandler(err, req, res, next) {
   }
 
   const status = err.status || 500;
+  if (status >= 500) console.error(err);
   const message = status >= 500 ? 'Internal server error.' : err.message;
   res.status(status).json({ error: message });
 }

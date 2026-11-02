@@ -29,6 +29,18 @@ export const env = {
   defaultOrgAdminEmail: lower(process.env.DEFAULT_ORG_ADMIN_EMAIL),
   legacyPasswordLogin: bool(process.env.LEGACY_PASSWORD_LOGIN, false),
 
+  fuel: {
+    // 'null' (default) or 'http'. 'http' is only used for organisations
+    // with aiFuelAnalyticsEnabled; everyone else gets the null provider.
+    provider: (process.env.FUEL_ANALYTICS_PROVIDER || 'null').toLowerCase(),
+    serviceUrl: process.env.AI_FUEL_SERVICE_URL || '',
+    serviceSecret: process.env.AI_FUEL_SERVICE_SECRET || '',
+    timeoutMs: int(process.env.AI_FUEL_SERVICE_TIMEOUT_MS, 30000),
+    jobEnabled: bool(process.env.FUEL_ANALYSIS_JOB_ENABLED, false),
+    jobIntervalMinutes: int(process.env.FUEL_ANALYSIS_INTERVAL_MINUTES, 1440),
+    lookbackDays: int(process.env.FUEL_ANALYSIS_LOOKBACK_DAYS, 90),
+  },
+
   mpesa: {
     consumerKey: process.env.MPESA_CONSUMER_KEY,
     consumerSecret: process.env.MPESA_CONSUMER_SECRET,

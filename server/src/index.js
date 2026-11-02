@@ -6,6 +6,7 @@ import { checkDatabaseRoles } from './config/db.js';
 import { createApp } from './app.js';
 import { registerGpsSocket } from './socket/gps.socket.js';
 import { runBootstrap } from './services/bootstrap.js';
+import { startFuelAnalysisScheduler } from './fuel/analysisJob.js';
 
 await checkDatabaseRoles({ production: env.nodeEnv === 'production' });
 await runBootstrap();
@@ -17,6 +18,7 @@ const io = new Server(server, {
 });
 
 registerGpsSocket(io);
+startFuelAnalysisScheduler();
 
 server.listen(env.port, () => {
   console.log(`TMS server running on port ${env.port} (${env.nodeEnv})`);
