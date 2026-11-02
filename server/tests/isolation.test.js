@@ -44,6 +44,10 @@ describe('read endpoints never return another tenant\'s data', () => {
     ['officer', '/api/vehicles/logs/:busA'],
     ['admin', '/api/gps/history/:busA'],
     ['admin', '/api/auth/me'],
+    ['admin', '/api/org'],
+    ['admin', '/api/org/members'],
+    ['admin', '/api/org/invitations'],
+    ['admin', '/api/org/access-requests'],
     ['student', '/api/students/profile'],
     ['student', '/api/students/routes'],
     ['student', '/api/students/my-bus'],
@@ -87,10 +91,18 @@ describe('direct access to another tenant\'s records returns 404', () => {
     ['admin', 'post', '/api/admin/buses', { licensePlate: 'KXX 999', driverId: ':driverB' }],
     ['admin', 'put', '/api/admin/buses/:busA', { driverId: ':driverB' }],
     ['student', 'post', '/api/slots/book', { slotId: ':slotB' }],
+    ['admin', 'patch', '/api/org/members/:memberB', { role: 'DRIVER' }],
+    ['admin', 'delete', '/api/org/members/:memberB'],
+    ['admin', 'put', '/api/org/members/:memberB/email', { email: 'hijack@test.example' }],
+    ['admin', 'delete', '/api/org/invitations/:inviteB'],
+    ['admin', 'post', '/api/org/access-requests/:requestB/approve', { role: 'DRIVER' }],
+    ['admin', 'post', '/api/org/access-requests/:requestB/reject'],
   ])('%s %s %s', async (who, method, rawPath, rawBody) => {
     const fill = (v) => (typeof v === 'string'
       ? v.replace(':busB', B.bus.id).replace(':busA', A.bus.id).replace(':routeB', B.route.id)
         .replace(':driverB', B.driver.profile.id).replace(':slotB', B.slot.id)
+        .replace(':memberB', B.driver.membership.id).replace(':inviteB', B.invitation.id)
+        .replace(':requestB', B.accessRequest.id)
       : v);
     const body = rawBody && Object.fromEntries(Object.entries(rawBody).map(([k, v]) => [k, fill(v)]));
     const res = await send(method, fill(rawPath), A[who], body);

@@ -43,20 +43,30 @@ export async function seedTenant(marker, orgOverrides = {}) {
     data: { organizationId: org.id, studentId: student.profile.id, amount: 1500, status: 'PAID', mpesaReceipt: `REC${marker}` },
   });
 
-  return { org, admin, officer, driver, student, route, point, bus, slot };
+  const invitation = await db.invitation.create({
+    data: { organizationId: org.id, email: `invite-${marker.toLowerCase()}@test.example`, role: 'DRIVER', expiresAt: new Date(Date.now() + 864e5) },
+  });
+  const requester = await db.user.create({ data: { firstName: `Requester${marker}`, lastName: 'X', email: `req-${marker.toLowerCase()}@test.example` } });
+  const accessRequest = await db.accessRequest.create({
+    data: { organizationId: org.id, userId: requester.id, message: `Please ${marker}` },
+  });
+
+  return { org, admin, officer, driver, student, route, point, bus, slot, invitation, accessRequest };
 }
 
 // Snapshot of every tenant-owned row for an organisation, used to prove
 // that nothing was modified by another tenant's requests.
 export async function snapshotTenant(organizationId) {
   const where = { where: { organizationId }, orderBy: { id: 'asc' } };
-  const [students, drivers, routes, points, buses, slots, rosters, logs, gps, payments, memberships] = await Promise.all([
+  const [students, drivers, routes, points, buses, slots, rosters, logs, gps, payments, memberships, invitations, accessRequests] = await Promise.all([
     db.student.findMany(where), db.driver.findMany(where), db.route.findMany(where),
     db.pickupPoint.findMany(where), db.bus.findMany(where), db.pickupSlot.findMany(where),
     db.tripRoster.findMany(where), db.vehicleLog.findMany(where), db.gpsLog.findMany(where),
     db.payment.findMany(where), db.membership.findMany(where),
+    db.invitation.findMany(where), db.accessRequest.findMany(where),
   ]);
   return JSON.parse(JSON.stringify({
     students, drivers, routes, points, buses, slots, rosters, logs, gps, payments, memberships,
+    invitations, accessRequests,
   }));
 }

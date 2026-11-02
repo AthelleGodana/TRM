@@ -1,6 +1,6 @@
 // Centralised error handler. Any error passed to next(err) lands here.
 export function errorHandler(err, req, res, next) {
-  console.error(err);
+  if (!err.status || err.status >= 500) console.error(err);
 
   if (err.code === 'P2002') {
     return res.status(409).json({ error: 'A record with that value already exists.' });

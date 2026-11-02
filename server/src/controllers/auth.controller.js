@@ -94,12 +94,3 @@ export const login = asyncHandler(async (req, res) => {
     },
   });
 });
-
-export const me = asyncHandler(async (req, res) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: { id: true, username: true, firstName: true, lastName: true },
-  });
-  if (!user) return res.status(404).json({ error: 'User not found.' });
-  res.json({ user: { ...user, role: req.user.role, organizationId: req.user.organizationId } });
-});

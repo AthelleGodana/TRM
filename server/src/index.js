@@ -5,8 +5,10 @@ import { env } from './config/env.js';
 import { checkDatabaseRoles } from './config/db.js';
 import { createApp } from './app.js';
 import { registerGpsSocket } from './socket/gps.socket.js';
+import { runBootstrap } from './services/bootstrap.js';
 
 await checkDatabaseRoles({ production: env.nodeEnv === 'production' });
+await runBootstrap();
 
 const app = createApp();
 const server = http.createServer(app);
