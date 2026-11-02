@@ -43,6 +43,7 @@ describe('read endpoints never return another tenant\'s data', () => {
     ['officer', '/api/slots'],
     ['officer', '/api/vehicles/logs/:busA'],
     ['admin', '/api/gps/history/:busA'],
+    ['officer', '/api/gps/live'],
     ['admin', '/api/auth/me'],
     ['admin', '/api/org'],
     ['admin', '/api/org/members'],

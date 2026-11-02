@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "GpsLog" ADD COLUMN     "accuracy" DOUBLE PRECISION,
+ADD COLUMN     "heading" DOUBLE PRECISION,
+ADD COLUMN     "speedKmh" DOUBLE PRECISION;

@@ -1,7 +1,7 @@
 import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { canAccessPickupPoint } from '../utils/tier.js';
-import { busForRoute } from '../services/passenger.service.js';
+import { busForRoute, passengerTrip } from '../services/passenger.service.js';
 
 async function getStudentByUserId(userId) {
   return prisma.student.findFirst({ where: { userId } });
@@ -99,5 +99,5 @@ export const getMyBus = asyncHandler(async (req, res) => {
 
   const bus = await busForRoute(student.routeId);
   if (!bus) return res.status(404).json({ error: 'No bus assigned to your route yet.' });
-  res.json({ bus });
+  res.json({ bus, passenger: await passengerTrip(student) });
 });

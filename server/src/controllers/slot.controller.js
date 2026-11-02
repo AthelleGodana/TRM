@@ -1,5 +1,6 @@
 import prisma, { tenantTransaction } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { startOfToday } from '../utils/time.js';
 
 // ── Admin: create a pickup time slot with a capacity cap ──────────────
 export const createSlot = asyncHandler(async (req, res) => {
@@ -64,11 +65,6 @@ export const listSlotsForStudent = asyncHandler(async (req, res) => {
   });
 });
 
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 // ── Student: book (or swap) a pickup slot. Optimistic on the client. ──
 export const bookSlot = asyncHandler(async (req, res) => {

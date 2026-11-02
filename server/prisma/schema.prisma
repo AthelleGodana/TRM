@@ -407,6 +407,10 @@ model GpsLog {
   bus            Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
   lat            Float
   lng            Float
+  // Reported by the driver's device when available.
+  speedKmh       Float?
+  heading        Float?
+  accuracy       Float?
   recordedAt     DateTime     @default(now())
 
   @@index([organizationId, busId, recordedAt])

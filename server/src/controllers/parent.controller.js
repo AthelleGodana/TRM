@@ -1,6 +1,6 @@
 import prisma from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { busForRoute, presentPassenger } from '../services/passenger.service.js';
+import { busForRoute, passengerTrip, presentPassenger } from '../services/passenger.service.js';
 
 // PARENT: see your own children and track the bus on their route.
 
@@ -26,5 +26,5 @@ export const getChildBus = asyncHandler(async (req, res) => {
   if (!child) return res.status(404).json({ error: 'Child not found.' });
   const bus = await busForRoute(child.routeId);
   if (!bus) return res.status(404).json({ error: 'No bus is assigned to this route yet.' });
-  res.json({ bus });
+  res.json({ bus, passenger: { ...(await passengerTrip(child)), name: presentPassenger(child).user.firstName } });
 });
