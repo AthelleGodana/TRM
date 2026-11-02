@@ -45,11 +45,39 @@ Isolation is enforced in layers:
   - a 15-minute access token (`userId`, `organizationId`, `role`), held in memory by the client;
   - a **rotating** refresh token in an `httpOnly`, `Secure`, `SameSite=Strict` cookie scoped to `/api/auth`. Reusing a rotated token revokes the whole session family.
 - Endpoints: `/api/auth/refresh`, `/api/auth/logout`, `/api/auth/switch-org` and `/api/auth/me`.
-- **Onboarding:**
-  - An ORG_ADMIN invites people by email and role (People & Access page). A matching invitation creates the membership on the person's first Google sign-in.
-  - A Google user without an invitation can request access with an organisation code, or register a new organisation. New organisations stay `PENDING`, and their members cannot sign in, until a SUPER_ADMIN approves them (Platform console).
-  - The first SUPER_ADMIN is seeded from `SUPER_ADMIN_EMAIL`.
+- **Onboarding:** see [Access flow](#access-flow) below. The first SUPER_ADMIN is seeded from `SUPER_ADMIN_EMAIL`.
 - **Legacy users** are matched by verified email on their first Google sign-in. Password login is disabled; `LEGACY_PASSWORD_LOGIN=true` re-enables it temporarily for a migration window.
+
+### Access flow
+
+Nobody can use an organisation's data until one of its administrators lets them in, much like a school's learning platform. There is no self sign-up and no password. Google only proves who someone is.
+
+| How someone gets in | What happens |
+|---|---|
+| **Invited** (People & Access → Invite, or **Import CSV**) | The invitation becomes a membership on their first Google sign-in with that email. |
+| **Requests access** with the organisation code | Each sign-in shows **"waiting for approval"** until an ORG_ADMIN approves the request (choosing the role) or rejects it, which shows **"not approved"**. The requester can ask again or try another organisation. |
+| **Registers a new organisation** | It stays `PENDING`, and nobody can sign in to it, until a SUPER_ADMIN approves it in the Platform console. |
+
+- Admins see waiting requests as a badge on **People & Access** and a callout on the overview. The badge comes from `GET /api/org/summary` and is polled every minute while the tab is open. No email or SMS is sent, so it costs nothing.
+- A suspended organisation blocks every member's sign-in.
+
+#### Importing people from a CSV
+
+**People & Access → Import CSV** invites up to 500 people at once.
+
+- The browser parses the file and shows a preview with a check for every row. Only the rows are sent, to `POST /api/org/invitations/bulk`.
+- The server re-validates each row and reports what it skipped (invalid email, role not allowed for this organisation, already a member, duplicate). Importing someone again replaces their pending invitation.
+
+```csv
+email,role,child_first_name,child_last_name
+jane.wanjiku@gmail.com,STUDENT,,
+peter.otieno@gmail.com,DRIVER,,
+mary.njeri@gmail.com,PARENT,Baraka,Njeri
+mary.njeri@gmail.com,PARENT,Zawadi,Njeri
+```
+
+- `role` takes either the role code or its label (for example `Transport officer`). The page offers a template with the roles your organisation allows.
+- **Schools:** a `PARENT` row may name a child. When that parent first signs in, the pupils are created and linked to them. Use one row per child. Importing the same file again does not duplicate pupils.
 
 ### Creating the Google OAuth client
 
@@ -116,6 +144,42 @@ The migrations move existing single-tenant data into a **Default Organisation**:
 5. Each person signs in with Google. Accounts with a matching email are linked automatically. For other migrated members (drivers had no email), an ORG_ADMIN enters their Google email on the **People & Access** page.
 6. From the Platform console, turn on Fuel Hub for organisations that should have it.
 
+## Deploying on a single VPS (low cost)
+
+The whole stack (PostgreSQL, API, AI stub) runs with Docker Compose on one small Linux VPS. A 2 GB / 1 vCPU machine at about US$5–10 a month comfortably serves a few organisations. Nothing in the app needs a paid service: Google sign-in is free, there is no email or SMS, and map tiles default to OpenStreetMap.
+
+1. **Server:** install Docker, clone the repo, `cp .env.example .env`, and set real secrets, `NODE_ENV=production`, `CLIENT_URL=https://app.your-domain.co.ke` and `GOOGLE_CLIENT_ID`. Keep `DEV_LOGIN=false`; the API refuses to start otherwise.
+2. **Start:** `docker compose up -d --build`. Build the client with `cd client && npm ci && npm run build`. Compose publishes PostgreSQL and the API on `127.0.0.1` only, so neither is reachable from the internet directly. Allow only ports 22, 80 and 443 in the firewall (for example `ufw`).
+3. **One origin:** serve `client/dist` and proxy `/api` and `/socket.io` to `api:5000` from the same host, so the `SameSite=Strict` refresh cookie works. Caddy does this and obtains TLS certificates automatically:
+
+   ```
+   app.your-domain.co.ke {
+     encode gzip
+     handle /api/* { reverse_proxy 127.0.0.1:5000 }
+     handle /socket.io/* { reverse_proxy 127.0.0.1:5000 }
+     handle { root * /srv/transtrack/client/dist; try_files {path} /index.html; file_server }
+   }
+   ```
+
+   Alternatively, put the domain on Cloudflare's free plan (DNS, TLS, caching) in front of the VPS.
+4. **Backups:** add a nightly cron job, and copy the files off the server (for example to another machine or free object-storage credit):
+
+   ```bash
+   0 2 * * * docker exec shuttle_postgres pg_dump -U postgres -Fc shuttle_db > /var/backups/transtrack-$(date +\%F).dump && find /var/backups -name 'transtrack-*.dump' -mtime +14 -delete
+   ```
+
+5. **Keep it small:** GPS points are the fastest-growing table. `GPS_RETENTION_DAYS` (default 90) deletes older points daily; set it to `0` to keep everything.
+
+**Map tiles:** the live map uses the public OpenStreetMap tile servers. Their [usage policy](https://operations.osmfoundation.org/policies/tiles/) suits light use. If many people track buses at once, switch the `TileLayer` URL in `client/src/components/map/LiveMap.jsx` to a provider's free tier (for example MapTiler or Stadia Maps).
+
+## Design system
+
+The UI follows [design-system/transtrack-kenya/MASTER.md](design-system/transtrack-kenya/MASTER.md), generated with the [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) skill: Swiss-minimal style, tracking blue with an orange accent, and Plus Jakarta Sans. [DECISIONS.md](design-system/transtrack-kenya/DECISIONS.md) records how it was generated and where the app deliberately differs.
+
+- Colours are semantic CSS variables in `client/src/index.css`, with light as the default and dark as an option. Text meets 4.5:1 contrast in both themes.
+- Icons are Lucide only, with no emoji. Touch targets are at least 44px, focus rings are always visible, and reduced motion is respected.
+- Every signed-in area uses `AppShell`: a sidebar on desktop, and on mobile a top bar plus at most five bottom tabs.
+
 ## AI Fuel Hub (scaffold)
 
 - **Data:** `VehicleFuelProfile`, `FuelRecord`, `FuelCard` (last four digits only), `CalibrationRecord`, `FuelAnalysisRun` and `FuelAnomaly`. All are tenant-scoped.
@@ -142,6 +206,7 @@ The suites cover:
 
 - **Isolation:** every endpoint, each enforcement layer, and Socket.IO.
 - **Auth:** Google token verification, invitations, onboarding, pending organisations, refresh rotation and organisation switching.
+- **Access flow:** pending and rejected request status, admin summary counts, CSV bulk invitations (including school parents with children) and GPS retention.
 - **Pupils and parents.**
 - **Fuel Hub:** CRUD and the null/HTTP provider switch.
 - **The data migration,** replayed against legacy-shaped data.

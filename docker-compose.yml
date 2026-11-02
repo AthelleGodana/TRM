@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-shuttle_db}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -57,7 +57,7 @@ services:
       MPESA_PASSKEY: ${MPESA_PASSKEY:-}
       MPESA_CALLBACK_URL: ${MPESA_CALLBACK_URL:-}
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     networks: [default, ai-internal]
 
   # AI fuel analytics stub. Only on the internal network (no published
