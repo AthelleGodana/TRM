@@ -271,6 +271,14 @@ model Route {
   schoolArrival   String?
   schoolDeparture String?
   isActive        Boolean      @default(true)
+  // Road route through the stops, from the routing service (OSRM) when the
+  // route is saved: geometry is [[lat, lng], ...]; legs hold the distance
+  // (m) and duration (s) between consecutive pinned stops.
+  geometry          Json?
+  distanceMeters    Float?
+  durationSeconds   Float?
+  legs              Json?
+  geometryUpdatedAt DateTime?
 
   pickupPoints PickupPoint[]
   buses        Bus[]

@@ -8,6 +8,7 @@
 // Runs as the owner connection (DIRECT_DATABASE_URL), so RLS does not apply.
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import { fillRouteGeometry } from '../scripts/route-geometry.js';
 
 dotenv.config();
 
@@ -137,6 +138,9 @@ async function main() {
     update: {},
     create: { organizationId: school.id, studentId: pupil.id, userId: parent.user.id },
   });
+
+  // Road lines for the demo routes (skipped when ROUTING_URL is empty).
+  await fillRouteGeometry(prisma).catch((err) => console.log(`Route lines skipped: ${err.message}`));
 
   console.log('Seed complete: Demo University (code demo-university) and Demo Academy (code demo-school).');
   console.log(`Demo accounts use ${DEMO}; sign in with them when DEV_LOGIN=true.`);

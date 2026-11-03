@@ -90,6 +90,7 @@ describe('direct access to another tenant\'s records returns 404', () => {
     ['admin', 'post', '/api/admin/vehicles/logs', { busId: ':busB', type: 'MAINTENANCE', notes: 'x' }],
     ['admin', 'post', '/api/admin/vehicles/safety', { busId: ':busB', item: 'Brakes', passed: false }],
     ['admin', 'post', '/api/admin/slots', { routeId: ':routeB', time: '07:00' }],
+    ['admin', 'put', '/api/admin/routes/:routeB', { name: 'Hijacked', pickupPoints: [] }],
     ['admin', 'post', '/api/admin/buses', { licensePlate: 'KXX 999', driverId: ':driverB' }],
     ['admin', 'put', '/api/admin/buses/:busA', { driverId: ':driverB' }],
     ['student', 'post', '/api/slots/book', { slotId: ':slotB' }],

@@ -3,34 +3,9 @@ import { presentPassenger } from '../services/passenger.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 // ── Routes & pickup points ──────────────────────────────────────────────
-export const createRoute = asyncHandler(async (req, res) => {
-  const { name, schoolArrival, schoolDeparture, pickupPoints } = req.body;
-  if (!name) return res.status(400).json({ error: 'Route name is required.' });
-
-  const route = await prisma.route.create({
-    data: {
-      name,
-      schoolArrival,
-      schoolDeparture,
-      pickupPoints: {
-        create: (pickupPoints || []).map((p, i) => ({
-          name: p.name,
-          tier: p.tier,
-          lat: p.lat ?? null,
-          lng: p.lng ?? null,
-          order: i,
-        })),
-      },
-    },
-    include: { pickupPoints: true },
-  });
-
-  res.status(201).json({ route });
-});
-
 export const listRoutesAdmin = asyncHandler(async (req, res) => {
   const routes = await prisma.route.findMany({
-    include: { pickupPoints: true, buses: true },
+    include: { pickupPoints: { orderBy: { order: 'asc' } }, buses: true },
     orderBy: { id: 'desc' },
   });
   res.json({ routes });

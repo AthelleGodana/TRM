@@ -38,6 +38,21 @@ export const env = {
   // GPS points older than this are deleted daily; 0 keeps them forever.
   gpsRetentionDays: int(process.env.GPS_RETENTION_DAYS, 90),
 
+  // Road routing (OSRM) for route lines and ETAs, computed when a route is
+  // saved. Defaults to the free public OSRM server; set ROUTING_URL to a
+  // self-hosted OSRM in production, or to an empty string to turn it off.
+  routing: {
+    url: (process.env.ROUTING_URL ?? 'https://router.project-osrm.org').replace(/\/+$/, ''),
+    profile: process.env.ROUTING_PROFILE || 'driving',
+    timeoutMs: int(process.env.ROUTING_TIMEOUT_MS, 10000),
+  },
+  // Place search for adding stops (OpenStreetMap Nominatim). Empty turns it off.
+  geocoding: {
+    url: (process.env.GEOCODING_URL ?? 'https://nominatim.openstreetmap.org').replace(/\/+$/, ''),
+    countryCodes: process.env.GEOCODING_COUNTRY_CODES ?? 'ke',
+    contactEmail: process.env.GEOCODING_CONTACT_EMAIL || '',
+  },
+
   fuel: {
     // 'null' (default) or 'http'. 'http' is only used for organisations
     // with aiFuelAnalyticsEnabled; everyone else gets the null provider.

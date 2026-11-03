@@ -35,6 +35,8 @@ export async function busForRoute(routeId) {
     route: bus.route ? {
       id: bus.route.id, name: bus.route.name, pickupPoints: bus.route.pickupPoints,
       schoolArrival: bus.route.schoolArrival, schoolDeparture: bus.route.schoolDeparture,
+      geometry: bus.route.geometry, legs: bus.route.legs,
+      distanceMeters: bus.route.distanceMeters, durationSeconds: bus.route.durationSeconds,
     } : null,
   };
 }

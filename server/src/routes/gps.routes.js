@@ -20,7 +20,7 @@ router.get(
     const buses = await prisma.bus.findMany({
       include: {
         driver: { include: { user: { select: { firstName: true, lastName: true } } } },
-        route: { select: { id: true, name: true } },
+        route: { select: { id: true, name: true, geometry: true } },
       },
       orderBy: { licensePlate: 'asc' },
     });

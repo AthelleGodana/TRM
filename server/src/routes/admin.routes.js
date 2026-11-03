@@ -2,10 +2,13 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { STAFF_ROLES } from '../config/roles.js';
 import {
-  createRoute, listRoutesAdmin, updateBusAssignment, createBus, listBuses,
+  listRoutesAdmin, updateBusAssignment, createBus, listBuses,
   listDrivers, listStudents, removeStudents, removeDrivers, listAllPayments,
 } from '../controllers/admin.controller.js';
 import { getBillingOverview } from '../controllers/analytics.controller.js';
+import {
+  createRoute, updateRoute, previewRoute, optimiseRoute, searchPlaces,
+} from '../controllers/route.controller.js';
 import { getFleetOverview } from '../controllers/fleet.controller.js';
 import { createPupil, linkGuardian, unlinkGuardian, listParents } from '../controllers/pupil.controller.js';
 import {
@@ -23,8 +26,12 @@ const router = Router();
 const orgAdminOnly = requireRole('ORG_ADMIN');
 router.use(requireAuth, requireRole(...STAFF_ROLES));
 
+router.post('/routes/preview', previewRoute);
+router.post('/routes/optimise', optimiseRoute);
 router.post('/routes', createRoute);
 router.get('/routes', listRoutesAdmin);
+router.put('/routes/:id', updateRoute);
+router.get('/places', searchPlaces);
 
 router.post('/buses', createBus);
 router.get('/buses', listBuses);
