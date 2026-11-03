@@ -118,16 +118,18 @@ export default function TrackBus({ loadBus = getMyBus }) {
 
   if (loading) {
     return (
-      <div className="page max-w-3xl flex flex-col gap-3">
+      <div className="page">
         <PageHeader title={title} />
-        <SkeletonCard />
-        <div className="skeleton h-[420px] w-full" />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="skeleton h-[420px] lg:h-[calc(100vh-12rem)] w-full lg:order-first" />
+          <div className="flex flex-col gap-3 order-first lg:order-none"><SkeletonCard /><SkeletonCard /></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="page max-w-3xl">
+    <div className="page">
       <PageHeader title={title} subtitle="The bus position updates every few seconds while the driver's app is open." />
       <ErrorMessage message={error} />
       {bus && (
@@ -138,71 +140,78 @@ export default function TrackBus({ loadBus = getMyBus }) {
             </p>
           )}
 
-          <section className="grid sm:grid-cols-2 gap-3" aria-label="Bus status">
-            <div className="glass-card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="w-10 h-10 shrink-0 rounded-lg bg-primary-600 text-white flex items-center justify-center" aria-hidden="true">
-                    <BusFront size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-bold text-foreground tabular-nums">{bus.licensePlate}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {bus.route?.name}{bus.driver ? ` · ${bus.driver}` : ''}
-                    </p>
-                  </div>
-                </div>
-                <StatusBadge variant={STATUS_VARIANT[status.key]} dot>{status.label}</StatusBadge>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground" aria-live="off">
-                {position ? `Updated ${timeAgo(position.recordedAt, now)}` : 'The driver has not shared a location yet.'}
-                {position?.speedKmh != null && status.key === 'moving' ? ` · ${position.speedKmh} km/h` : ''}
-              </p>
-            </div>
-
-            <div className="glass-card p-4">
-              <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <MapPin size={16} aria-hidden="true" />
-                {stop ? `${evening ? 'Drop-off' : 'Pickup'}: ${stop.name}` : 'Your stop'}
-              </p>
-              {!stop && <p className="mt-2 text-sm text-muted-foreground">Choose your stop under My route to see an arrival estimate.</p>}
-              {stop && stop.lat == null && <p className="mt-2 text-sm text-muted-foreground">This stop has not been pinned on the map yet.</p>}
-              {stop && stop.lat != null && !trip && <p className="mt-2 text-sm text-muted-foreground">Waiting for the bus position.</p>}
-              {trip?.passed && <p className="mt-2 text-sm text-foreground">The bus has passed this stop.</p>}
-              {trip && !trip.passed && (
-                status.key === 'offline' ? (
-                  <p className="mt-2 text-sm text-muted-foreground">No estimate while the bus is offline ({formatDistance(trip.meters)} away when last seen).</p>
-                ) : (
-                  <>
-                    <p className="mt-1 text-2xl font-bold tracking-tight text-foreground tabular-nums">
-                      About {trip.minutes} min
-                      <span className="ml-2 text-base font-medium text-muted-foreground">{formatDistance(trip.meters)}</span>
-                    </p>
-                    {planned && (
-                      <p className="mt-1 flex items-center gap-1.5 text-sm">
-                        <Clock size={14} className="text-muted-foreground" aria-hidden="true" />
-                        <span className="text-muted-foreground">{passenger?.bookedSlot && !evening ? 'Your booked' : 'Scheduled'} {plannedTime}:</span>
-                        {punctuality && <span className={`font-medium ${punctuality.tone}`}>{punctuality.text}</span>}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+            <section className="grid sm:grid-cols-2 lg:grid-cols-1 gap-3 lg:col-start-2 lg:row-start-1" aria-label="Bus status">
+              <div className="glass-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-10 h-10 shrink-0 rounded-lg bg-primary-600 text-white flex items-center justify-center" aria-hidden="true">
+                      <BusFront size={20} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-foreground tabular-nums">{bus.licensePlate}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {bus.route?.name}{bus.driver ? ` · ${bus.driver}` : ''}
                       </p>
-                    )}
-                  </>
-                )
-              )}
-            </div>
-          </section>
+                    </div>
+                  </div>
+                  <StatusBadge variant={STATUS_VARIANT[status.key]} dot>{status.label}</StatusBadge>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground" aria-live="off">
+                  {!position && 'The driver has not shared a location yet.'}
+                  {position && `${status.key === 'offline' ? 'Last seen' : 'Updated'} ${timeAgo(position.recordedAt, now)}`}
+                  {position?.speedKmh != null && status.key === 'moving' ? ` · ${position.speedKmh} km/h` : ''}
+                </p>
+              </div>
 
-          <LiveMap
-            position={position}
-            status={status.key}
-            label={bus.licensePlate}
-            stops={stops}
-            myStopId={stop?.id}
-            emergency={emergency}
-            delay={delay}
-          />
-          <p className="text-xs text-muted-foreground">
-            Arrival estimates use the bus's recent speed and the route between stops, so treat them as a guide.
-          </p>
+              <div className="glass-card p-4">
+                <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <MapPin size={16} aria-hidden="true" />
+                  {stop ? `${evening ? 'Drop-off' : 'Pickup'}: ${stop.name}` : 'Your stop'}
+                </p>
+                {!stop && <p className="mt-2 text-sm text-muted-foreground">Choose your stop under My route to see an arrival estimate.</p>}
+                {stop && stop.lat == null && <p className="mt-2 text-sm text-muted-foreground">This stop has not been pinned on the map yet.</p>}
+                {stop && stop.lat != null && !trip && <p className="mt-2 text-sm text-muted-foreground">Waiting for the bus position.</p>}
+                {trip?.passed && <p className="mt-2 text-sm text-foreground">The bus has passed this stop.</p>}
+                {trip && !trip.passed && (
+                  status.key === 'offline' ? (
+                    <p className="mt-2 text-sm text-muted-foreground">No estimate while the bus is offline ({formatDistance(trip.meters)} away when last seen).</p>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                        About {trip.minutes} min
+                        <span className="ml-2 text-base font-medium text-muted-foreground">{formatDistance(trip.meters)}</span>
+                      </p>
+                      {planned && (
+                        <p className="mt-1 flex items-center gap-1.5 text-sm">
+                          <Clock size={14} className="text-muted-foreground" aria-hidden="true" />
+                          <span className="text-muted-foreground">{passenger?.bookedSlot && !evening ? 'Your booked' : 'Scheduled'} {plannedTime}:</span>
+                          {punctuality && <span className={`font-medium ${punctuality.tone}`}>{punctuality.text}</span>}
+                        </p>
+                      )}
+                    </>
+                  )
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-1">
+                Arrival estimates use the bus's recent speed and the route between stops, so treat them as a guide.
+              </p>
+            </section>
+
+            <div className="lg:col-start-1 lg:row-start-1">
+              <LiveMap
+                position={position}
+                status={status.key}
+                label={bus.licensePlate}
+                stops={stops}
+                geometry={bus.route?.geometry}
+                myStopId={stop?.id}
+                emergency={emergency}
+                delay={delay}
+                className="h-[420px] sm:h-[520px] lg:h-[calc(100vh-12rem)] lg:min-h-[480px]"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

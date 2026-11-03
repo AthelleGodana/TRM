@@ -61,26 +61,32 @@ function FollowBus({ target, following, onUserMove, fitTo }) {
   return null;
 }
 
-// Live map of one bus with its route and stops.
+// Live map of one bus with its route and stops. The route follows the
+// stored road line when there is one, else straight lines between stops.
 // position: { lat, lng, ... } | null; status: 'moving' | 'stopped' | 'offline'
 export default function LiveMap({
   position = null,
   status = 'moving',
   label = 'Bus',
   stops = [],
+  geometry = null,
   myStopId = null,
   emergency = null,
   delay = null,
+  className = 'h-[420px] sm:h-[520px]',
 }) {
   const [following, setFollowing] = useState(true);
   const stopFollowing = useCallback(() => setFollowing(false), []);
   const display = useGlide(position);
   const mapped = useMemo(() => stops.filter((s) => s.lat != null && s.lng != null), [stops]);
-  const line = useMemo(() => mapped.map((s) => [s.lat, s.lng]), [mapped]);
+  const line = useMemo(
+    () => (geometry?.length > 1 ? geometry : mapped.map((s) => [s.lat, s.lng])),
+    [geometry, mapped],
+  );
   const center = position ? [position.lat, position.lng] : line[0] || DEFAULT_CENTER;
 
   return (
-    <div className="relative w-full h-[420px] sm:h-[520px] rounded-xl overflow-hidden border border-border">
+    <div className={`relative w-full ${className} rounded-xl overflow-hidden border border-border`}>
       {(emergency || delay) && (
         <div className="absolute top-3 left-3 right-3 z-[400] flex flex-col gap-2 pointer-events-none">
           {emergency && (
