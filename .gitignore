@@ -23,3 +23,6 @@ Thumbs.db
 server/src/generated/
 # Google OAuth client downloads contain a secret; the app only needs the client ID.
 client_secret*.json
+
+# Graphify knowledge graph (regenerate with: graphify update .)
+graphify-out/
