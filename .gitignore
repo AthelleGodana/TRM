@@ -21,3 +21,5 @@ Thumbs.db
 
 # Prisma generated client
 server/src/generated/
+# Google OAuth client downloads contain a secret; the app only needs the client ID.
+client_secret*.json
