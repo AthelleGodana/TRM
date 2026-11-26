@@ -12,12 +12,12 @@ export default defineConfig(({ mode }) => ({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png'],
+      includeAssets: ['apple-touch-icon.png', 'favicon.svg'],
       manifest: {
         name: 'Transtrack Kenya',
         short_name: 'Transtrack',
         description: 'Transport management and live tracking for universities, schools and companies across Kenya.',
-        theme_color: '#2563eb',
+        theme_color: '#f8fafc',
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',
@@ -45,14 +45,16 @@ export default defineConfig(({ mode }) => ({
       devOptions: { enabled: false },
     }),
   ],
+  // Production builds drop console/debugger calls.
+  esbuild: mode === 'production' ? { drop: ['console', 'debugger'] } : {},
   build: {
+    // Only React is split out by hand (shared by every page, cached across
+    // deploys). Maps, charts and the rest follow the lazily loaded pages
+    // that use them, so they are not downloaded up front.
     rollupOptions: {
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-map': ['leaflet', 'react-leaflet'],
-          'vendor-charts': ['recharts'],
-          'vendor-motion': ['framer-motion'],
         },
       },
     },

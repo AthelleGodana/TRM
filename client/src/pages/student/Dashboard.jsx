@@ -1,16 +1,19 @@
-import { Link, Routes, Route } from 'react-router-dom';
+import { lazy } from 'react';
+import { Link, Routes, Route, Navigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import AppShell from '../../components/layout/AppShell';
 import { useAuth } from '../../context/AuthContext';
 import { STUDENT_MENU } from '../../config/navigation';
-import TrackBus from './TrackBus';
-import RegisterRoute from './RegisterRoute';
-import Payments from './Payments';
-import Profile from './Profile';
+import NotFound from '../NotFound';
+
+const TrackBus = lazy(() => import('./TrackBus'));
+const MyRides = lazy(() => import('./MyRides'));
+const Payments = lazy(() => import('./Payments'));
+const Profile = lazy(() => import('./Profile'));
 
 const DESCRIPTIONS = {
   '/student/track': 'See where your bus is right now',
-  '/student/register-route': 'Choose your route and pickup stop',
+  '/student/rides': 'Choose your pickup and drop-off stop and time',
   '/student/payments': 'Pay with M-Pesa and see receipts',
   '/student/profile': 'Your details and contact information',
 };
@@ -52,9 +55,11 @@ export default function StudentDashboard({ onInstall }) {
       <Routes>
         <Route index element={<Home />} />
         <Route path="track" element={<TrackBus />} />
-        <Route path="register-route" element={<RegisterRoute />} />
+        <Route path="rides" element={<MyRides />} />
+        <Route path="register-route" element={<Navigate to="/student/rides" replace />} />
         <Route path="payments" element={<Payments />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="*" element={<NotFound homePath="/student" />} />
       </Routes>
     </AppShell>
   );

@@ -45,6 +45,7 @@ beforeAll(async () => {
       (1, 3, ' Jane@Example.com '), (2, 4, 'twins@example.com'), (3, 5, 'twins@example.com');
     INSERT INTO "Route" (id, name) VALUES (1, 'Route A');
     INSERT INTO "PickupPoint" (id, "routeId", name, tier) VALUES (1, 1, 'Town', 'TOWN');
+    UPDATE "Student" SET "routeId" = 1, "arrivePickupPointId" = 1 WHERE id = 1;
     INSERT INTO "Bus" (id, "licensePlate", "driverId", "routeId") VALUES (1, 'KDA 123X', 1, 1);
     INSERT INTO "PickupSlot" (id, "routeId", "busId", time, label) VALUES (1, 1, 1, '06:30', 'Morning');
     INSERT INTO "TripRoster" (id, "busId", "slotId", "studentId") VALUES (1, 1, 1, 1);
@@ -100,6 +101,8 @@ describe('multi-tenancy data migration', () => {
     const rlsTables = [
       ...TENANT_TABLES, 'Membership', 'Invitation', 'AccessRequest', 'PassengerGuardian',
       'VehicleFuelProfile', 'FuelCard', 'FuelRecord', 'CalibrationRecord', 'FuelAnalysisRun', 'FuelAnomaly',
+      'VehicleAssignment', 'MaintenanceSchedule', 'ServiceRecord', 'DefectReport', 'Document',
+      'RideBooking', 'RideException',
     ];
     const { rows } = await db.query(
       `SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY($1)`,
@@ -127,6 +130,18 @@ describe('multi-tenancy data migration', () => {
     expect(Number(rows[0].pricePerLitre)).toBe(180);
     const { rows: logs } = await db.query(`SELECT count(*)::int AS n FROM "VehicleLog"`);
     expect(logs[0].n).toBe(2);
+  });
+
+  it('opens an assignment for every vehicle with a driver', async () => {
+    const { rows } = await db.query(`SELECT "busId", "driverId", "endedAt" FROM "VehicleAssignment"`);
+    expect(rows).toEqual([{ busId: 1, driverId: 1, endedAt: null }]);
+  });
+
+  it('turns existing pickup stops and slot bookings into standing pickup rides', async () => {
+    const { rows } = await db.query(`SELECT "studentId", direction, "slotId", "pickupPointId" FROM "RideBooking"`);
+    expect(rows).toEqual([{ studentId: 1, direction: 'PICKUP', slotId: 1, pickupPointId: 1 }]);
+    const { rows: slots } = await db.query(`SELECT direction, "daysOfWeek" FROM "PickupSlot"`);
+    expect(slots).toEqual([{ direction: 'PICKUP', daysOfWeek: [1, 2, 3, 4, 5] }]);
   });
 
   it('copies unique student emails onto users and skips shared ones', async () => {

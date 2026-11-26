@@ -30,7 +30,14 @@ export async function seedTenant(marker, orgOverrides = {}) {
     data: { routeId: route.id, arrivePickupPointId: point.id, address: `Addr ${marker}` },
   });
   const slot = await db.pickupSlot.create({
-    data: { organizationId: org.id, routeId: route.id, busId: bus.id, time: '06:30', label: `Slot ${marker}` },
+    data: {
+      organizationId: org.id, routeId: route.id, busId: bus.id, time: '06:30', label: `Slot ${marker}`,
+      daysOfWeek: [1, 2, 3, 4, 5, 6, 7],
+    },
+  });
+  // The student's standing pickup on that run.
+  await db.rideBooking.create({
+    data: { organizationId: org.id, studentId: student.profile.id, direction: 'PICKUP', slotId: slot.id, pickupPointId: point.id },
   });
   await db.tripRoster.create({
     data: { organizationId: org.id, busId: bus.id, slotId: slot.id, studentId: student.profile.id },
@@ -51,7 +58,25 @@ export async function seedTenant(marker, orgOverrides = {}) {
     data: { organizationId: org.id, userId: requester.id, message: `Please ${marker}` },
   });
 
-  return { org, admin, officer, driver, student, route, point, bus, slot, invitation, accessRequest };
+  // Fleet management records.
+  await db.vehicleAssignment.create({ data: { organizationId: org.id, busId: bus.id, driverId: driver.profile.id } });
+  const schedule = await db.maintenanceSchedule.create({
+    data: { organizationId: org.id, busId: bus.id, name: `Service ${marker}`, intervalKm: 5000, lastDoneOdometer: 0 },
+  });
+  const service = await db.serviceRecord.create({
+    data: { organizationId: org.id, busId: bus.id, scheduleId: schedule.id, description: `Work ${marker}`, servicedAt: new Date() },
+  });
+  const defect = await db.defectReport.create({
+    data: { organizationId: org.id, busId: bus.id, driverId: driver.profile.id, description: `Defect ${marker}` },
+  });
+  const document = await db.document.create({
+    data: { organizationId: org.id, entityType: 'VEHICLE', busId: bus.id, kind: 'INSURANCE', number: `DOC ${marker}` },
+  });
+
+  return {
+    org, admin, officer, driver, student, route, point, bus, slot, invitation, accessRequest,
+    schedule, service, defect, document,
+  };
 }
 
 // Snapshot of every tenant-owned row for an organisation, used to prove
@@ -65,8 +90,14 @@ export async function snapshotTenant(organizationId) {
     db.payment.findMany(where), db.membership.findMany(where),
     db.invitation.findMany(where), db.accessRequest.findMany(where),
   ]);
+  const [assignments, schedules, services, defects, documents, rideBookings, rideExceptions] = await Promise.all([
+    db.vehicleAssignment.findMany(where), db.maintenanceSchedule.findMany(where), db.serviceRecord.findMany(where),
+    db.defectReport.findMany(where), db.document.findMany(where), db.rideBooking.findMany(where),
+    db.rideException.findMany(where),
+  ]);
   return JSON.parse(JSON.stringify({
     students, drivers, routes, points, buses, slots, rosters, logs, gps, payments, memberships,
     invitations, accessRequests,
+    assignments, schedules, services, defects, documents, rideBookings, rideExceptions,
   }));
 }

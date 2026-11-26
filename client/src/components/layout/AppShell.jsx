@@ -7,6 +7,7 @@ import Brand from './Brand';
 import Drawer from '../common/Drawer';
 import OrgSwitcher from '../common/OrgSwitcher';
 import ThemeToggle from '../common/ThemeToggle';
+import { PageBoundary } from '../common/ErrorBoundary';
 
 const MAX_TABS = 5;
 
@@ -64,9 +65,11 @@ export default function AppShell({ nav = [], onInstall, children }) {
           <Brand />
           <div className="mt-3"><OrgSwitcher /></div>
         </div>
-        <nav aria-label="Main" className="flex-1 overflow-y-auto p-3">
-          <NavList items={nav} />
-        </nav>
+        {nav.length > 0 ? (
+          <nav aria-label="Main" className="flex-1 overflow-y-auto p-3">
+            <NavList items={nav} />
+          </nav>
+        ) : <div className="flex-1" />}
         <div className="border-t border-border p-3">
           {name && (
             <div className="px-2 pb-2 min-w-0">
@@ -118,7 +121,9 @@ export default function AppShell({ nav = [], onInstall, children }) {
         tabIndex={-1}
         className={`lg:pl-64 focus:outline-none ${showTabs ? 'pb-24 lg:pb-0' : 'pb-6'}`}
       >
-        {children}
+        {/* A page that fails to render, or is still loading, keeps the
+            navigation usable. Navigating clears the error. */}
+        <PageBoundary resetKey={location.pathname} homePath={homePath}>{children}</PageBoundary>
       </main>
 
       {/* ── Mobile bottom tabs ──────────────────────────────────────── */}
@@ -168,9 +173,11 @@ export default function AppShell({ nav = [], onInstall, children }) {
 
       {/* ── Mobile menu ─────────────────────────────────────────────── */}
       <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu" side="left">
-        <nav aria-label="Main">
-          <NavList items={nav} />
-        </nav>
+        {nav.length > 0 && (
+          <nav aria-label="Main">
+            <NavList items={nav} />
+          </nav>
+        )}
         <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2">
           {name && (
             <div className="px-1 pb-1 min-w-0">

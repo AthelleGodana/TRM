@@ -9,6 +9,7 @@ import { getMyBus } from '../../services/student.service';
 import { useToast } from '../../context/ToastContext';
 import { useBusFeed, useConnectionState, useSocketEvent } from '../../hooks/useLive';
 import { useNow } from '../../hooks/useNow';
+import { plural } from '../../utils/format';
 import {
   busStatus, distanceMeters, etaMinutes, formatDistance, MOVING_KMH, remainingAlongRoute, timeAgo, todayAt,
 } from '../../utils/geo';
@@ -43,11 +44,14 @@ export default function TrackBus({ loadBus = getMyBus }) {
   const connection = useConnectionState();
 
   useEffect(() => {
+    let current = true; // a parent switching child must not see the previous child's bus
     setLoading(true);
+    setError('');
     loadBus()
-      .then(setData)
-      .catch((err) => setError(err.response?.data?.error || 'Could not load the bus.'))
-      .finally(() => setLoading(false));
+      .then((d) => { if (current) setData(d); })
+      .catch((err) => { if (current) setError(err.response?.data?.error || 'Could not load the bus.'); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
   }, [loadBus]);
 
   const bus = data?.bus;
@@ -62,8 +66,8 @@ export default function TrackBus({ loadBus = getMyBus }) {
   });
   useSocketEvent('bus:delay', (p) => {
     if (p.busId !== bus?.id) return;
-    setDelay(`The driver reports a delay of about ${p.minutes} minutes.`);
-    toast.warning(`Your bus is running about ${p.minutes} minutes late.`, { title: 'Delay' });
+    setDelay(`The driver reports a delay of about ${plural(p.minutes, 'minute')}.`);
+    toast.warning(`Your bus is running about ${plural(p.minutes, 'minute')} late.`, { title: 'Delay' });
   });
 
   // Recent moving speeds, smoothed for the ETA.
@@ -76,7 +80,7 @@ export default function TrackBus({ loadBus = getMyBus }) {
   const avgSpeed = speeds.current.length ? speeds.current.reduce((a, b) => a + b, 0) / speeds.current.length : 0;
 
   const { stop, evening } = currentStop(bus, passenger, now);
-  const stops = bus?.route?.pickupPoints || [];
+  const stops = useMemo(() => bus?.route?.pickupPoints || [], [bus]);
   const trip = useMemo(() => {
     if (!position || !stop || stop.lat == null) return null;
     const index = stops.findIndex((s) => s.id === stop.id);
@@ -100,8 +104,12 @@ export default function TrackBus({ loadBus = getMyBus }) {
     }
   }, [trip, status.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Compare the ETA with the time the passenger booked (or the route time).
-  const plannedTime = (!evening && passenger?.bookedSlot?.time)
+  // Compare the ETA with the time the passenger's run reaches their stop
+  // today (or, without a booking, the route time).
+  const ride = evening ? passenger?.today?.DROPOFF : passenger?.today?.PICKUP;
+  const booked = Boolean(ride?.time || (!evening && passenger?.bookedSlot?.time));
+  const plannedTime = ride?.time
+    || (!evening && passenger?.bookedSlot?.time)
     || (evening ? bus?.route?.schoolDeparture : null);
   const planned = todayAt(plannedTime);
   let punctuality = null;
@@ -157,6 +165,8 @@ export default function TrackBus({ loadBus = getMyBus }) {
                   </div>
                   <StatusBadge variant={STATUS_VARIANT[status.key]} dot>{status.label}</StatusBadge>
                 </div>
+                {/* Announces moving / stopped / offline changes, not every update. */}
+                <p role="status" aria-atomic="true" className="sr-only">{position ? `Bus ${bus.licensePlate}: ${status.label}.` : ''}</p>
                 <p className="mt-3 text-sm text-muted-foreground" aria-live="off">
                   {!position && 'The driver has not shared a location yet.'}
                   {position && `${status.key === 'offline' ? 'Last seen' : 'Updated'} ${timeAgo(position.recordedAt, now)}`}
@@ -185,7 +195,7 @@ export default function TrackBus({ loadBus = getMyBus }) {
                       {planned && (
                         <p className="mt-1 flex items-center gap-1.5 text-sm">
                           <Clock size={14} className="text-muted-foreground" aria-hidden="true" />
-                          <span className="text-muted-foreground">{passenger?.bookedSlot && !evening ? 'Your booked' : 'Scheduled'} {plannedTime}:</span>
+                          <span className="text-muted-foreground">{booked ? 'Your booked' : 'Scheduled'} {plannedTime}:</span>
                           {punctuality && <span className={`font-medium ${punctuality.tone}`}>{punctuality.text}</span>}
                         </p>
                       )}

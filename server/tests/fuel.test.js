@@ -260,6 +260,27 @@ describe('analytics provider switch', () => {
       expect(stored.body.anomalies.map((a) => a.type)).toEqual(['CONSUMPTION_SPIKE']);
     });
 
+    it('a second run over the same window stores nothing twice', async () => {
+      reply = (req) => ({
+        organizationId: req.organizationId,
+        modelVersion: 'stub-1',
+        anomalies: [
+          { type: 'CONSUMPTION_SPIKE', severity: 'HIGH', score: 0.87, vehicleId: req.vehicles[0].id,
+            fuelRecordId: req.fuelRecords[0].id, explanation: { summary: 'Used 40% more fuel than expected.' } },
+          { type: 'EFFICIENCY_DRIFT', severity: 'MEDIUM', score: 0.5, vehicleId: req.vehicles[0].id,
+            fuelRecordId: null, explanation: { summary: 'Fuel use up 25%.' } },
+        ],
+      });
+      // The previous test already stored the CONSUMPTION_SPIKE: only the drift is new.
+      const first = await runFuelAnalysisForTenant(A.org, { provider: provider() });
+      expect(first.anomaliesFound).toBe(1);
+      const second = await runFuelAnalysisForTenant(A.org, { provider: provider() });
+      expect(second.status).toBe('SUCCEEDED');
+      expect(second.anomaliesFound).toBe(0);
+      const counts = await db.fuelAnomaly.groupBy({ by: ['type'], where: { organizationId: A.org.id }, _count: true });
+      expect(Object.fromEntries(counts.map((c) => [c.type, c._count]))).toMatchObject({ CONSUMPTION_SPIKE: 1, EFFICIENCY_DRIFT: 1 });
+    });
+
     it('rejects a response for another organisation', async () => {
       reply = () => ({ organizationId: B.org.id, anomalies: [] });
       const run = await runFuelAnalysisForTenant(A.org, { provider: provider() });

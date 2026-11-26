@@ -14,10 +14,14 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  // True when the session ended by itself (refresh failed), so the sign-in
+  // page can say so instead of appearing out of nowhere.
+  const [expired, setExpired] = useState(false);
 
   const applySession = useCallback((data) => {
     setAccessToken(data.accessToken);
     setSession(data.session);
+    setExpired(false);
     return data.session;
   }, []);
 
@@ -28,7 +32,7 @@ export function AuthProvider({ children }) {
       .catch(() => { setSession(null); return null; }), []);
 
   useEffect(() => {
-    setSessionExpiredHandler(() => setSession(null));
+    setSessionExpiredHandler(() => { setExpired(true); setSession(null); });
     restore().finally(() => setLoading(false));
   }, [restore]);
 
@@ -74,7 +78,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      session, user, loading, signInWithGoogle, devLogin, switchOrganization, logout, restore, loginWithPassword,
+      session, user, loading, expired, signInWithGoogle, devLogin, switchOrganization, logout, restore, loginWithPassword,
     }}>
       {children}
     </AuthContext.Provider>

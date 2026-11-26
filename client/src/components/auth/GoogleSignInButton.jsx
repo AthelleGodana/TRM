@@ -72,7 +72,7 @@ export default function GoogleSignInButton({ clientId, onCredential, onError }) 
   }, [clientId, theme, redirect, onError]);
 
   if (!clientId) {
-    return <p className="text-sm text-center text-amber-600">Google sign-in is not configured (GOOGLE_CLIENT_ID).</p>;
+    return <p className="text-sm text-center text-amber-800 dark:text-amber-300">Google sign-in is not configured (GOOGLE_CLIENT_ID).</p>;
   }
   return (
     <div>

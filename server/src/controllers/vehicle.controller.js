@@ -2,7 +2,6 @@ import prisma, { tenantTransaction } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { isStaff } from '../config/roles.js';
 import { findDriverBus as getBusForDriver } from '../services/busAccess.js';
-import { passengerName } from '../services/passenger.service.js';
 
 // Staff pick the bus explicitly; it must exist in their organisation.
 async function getBusForStaff(rawId) {
@@ -14,7 +13,10 @@ async function getBusForStaff(rawId) {
 // ── Bus status toggle (drivers + staff) ──────────────────────────────
 export const setBusStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
-  const valid = ['OPERATIONAL', 'IN_SERVICE', 'OUT_OF_FUEL'];
+  // Drivers report day-to-day states; staff can also take a vehicle off the road.
+  const valid = isStaff(req.user.role)
+    ? ['OPERATIONAL', 'IN_SERVICE', 'OUT_OF_FUEL', 'IN_MAINTENANCE', 'OUT_OF_SERVICE']
+    : ['OPERATIONAL', 'IN_SERVICE', 'OUT_OF_FUEL'];
   if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
 
   let bus;
@@ -162,74 +164,4 @@ export const toggleSafetyCheck = asyncHandler(async (req, res) => {
     data: { busId, type: 'SAFETY_CHECK', notes: item, passed: Boolean(passed) },
   });
   res.status(201).json({ log });
-});
-
-// ── Driver roster (students on the assigned bus route) ────────────────
-export const getRoster = asyncHandler(async (req, res) => {
-  const bus = await getBusForDriver(req.user.id);
-  if (!bus) return res.status(404).json({ error: 'No bus assigned to you.' });
-
-  const students = await prisma.student.findMany({
-    where: { routeId: bus.routeId },
-    include: {
-      user: { select: { firstName: true, lastName: true } },
-      arrivePickupPoint: true,
-    },
-    orderBy: { id: 'asc' },
-  });
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const entries = await prisma.tripRoster.findMany({
-    where: { busId: bus.id, tripDate: { gte: today } },
-  });
-
-  const roster = students.map((s) => {
-    const entry = entries.find((e) => e.studentId === s.id);
-    return {
-      id: s.id,
-      name: passengerName(s),
-      pickup: s.arrivePickupPoint?.name || '—',
-      status: entry?.status || 'PENDING',
-    };
-  }).sort((a, b) => a.name.localeCompare(b.name));
-
-  const boarded = roster.filter((r) => r.status === 'BOARDED').length;
-  const noShow = roster.filter((r) => r.status === 'NO_SHOW').length;
-
-  res.json({
-    roster,
-    total: roster.length,
-    boarded,
-    noShow,
-    remaining: roster.length - boarded - noShow,
-  });
-});
-
-// ── Driver: mark a student boarded / no-show ──────────────────────────
-export const setRosterStatus = asyncHandler(async (req, res) => {
-  const { studentId, status } = req.body;
-  if (!['BOARDED', 'NO_SHOW', 'PENDING'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid status.' });
-  }
-
-  const bus = await getBusForDriver(req.user.id);
-  if (!bus) return res.status(404).json({ error: 'No bus assigned to you.' });
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const existing = await prisma.tripRoster.findFirst({
-    where: { busId: bus.id, studentId: Number(studentId), tripDate: { gte: today } },
-  });
-
-  if (existing) {
-    await prisma.tripRoster.update({ where: { id: existing.id }, data: { status } });
-  } else {
-    await prisma.tripRoster.create({
-      data: { busId: bus.id, studentId: Number(studentId), status },
-    });
-  }
-
-  res.json({ message: 'Roster updated.', studentId: Number(studentId), status });
 });

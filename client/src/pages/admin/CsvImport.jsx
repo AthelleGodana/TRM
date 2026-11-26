@@ -154,18 +154,19 @@ export default function CsvImport() {
         <div className="lg:col-span-2 flex flex-col gap-4">
           <section className="glass-card p-5" aria-labelledby="upload-title">
             <h2 id="upload-title" className="section-title mb-3">Choose a file</h2>
+            {/* The input comes first so its keyboard focus can style the drop zone (peer). */}
+            <input
+              ref={inputRef} id={fileId} type="file" accept=".csv,text/csv" className="sr-only peer"
+              onChange={(e) => readFile(e.target.files?.[0])}
+            />
             <label
               htmlFor={fileId}
-              className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-4 py-8 text-center hover:border-primary-400 hover:bg-muted/50 transition-colors"
+              className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input/60 px-4 py-8 text-center hover:border-primary-400 hover:bg-muted/50 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:border-primary-600"
             >
               <Upload size={24} className="text-muted-foreground" aria-hidden="true" />
               <span className="text-sm font-medium text-foreground">{fileName || 'Select a .csv file'}</span>
               <span className="text-xs text-muted-foreground">Save from Excel or Google Sheets as “CSV”</span>
             </label>
-            <input
-              ref={inputRef} id={fileId} type="file" accept=".csv,text/csv" className="sr-only"
-              onChange={(e) => readFile(e.target.files?.[0])}
-            />
             <div className="mt-3"><ErrorMessage message={error} /></div>
           </section>
 

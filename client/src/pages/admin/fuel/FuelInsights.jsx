@@ -77,8 +77,8 @@ export default function FuelInsights() {
                 {a.bus?.licensePlate ? `${a.bus.licensePlate} · ` : ''}{new Date(a.createdAt).toLocaleDateString('en-KE')}
               </p>
               <div className="flex gap-2 mt-3">
-                <button className="btn-primary flex-1" onClick={() => review(a.id, 'CONFIRMED')}>Confirm</button>
-                <button className="btn-secondary flex-1" onClick={() => review(a.id, 'DISMISSED')}>Dismiss</button>
+                <button type="button" className="btn-primary flex-1" onClick={() => review(a.id, 'CONFIRMED')}>Confirm<span className="sr-only"> this anomaly</span></button>
+                <button type="button" className="btn-secondary flex-1" onClick={() => review(a.id, 'DISMISSED')}>Dismiss<span className="sr-only"> this anomaly</span></button>
               </div>
             </li>
           ))}
@@ -92,7 +92,7 @@ export default function FuelInsights() {
             : 'No analysis has run yet.'}
         </span>
         {session.role === 'ORG_ADMIN' && (
-          <button onClick={analyse} disabled={running} className="text-primary-600 dark:text-primary-400 font-medium">
+          <button type="button" onClick={analyse} disabled={running} className="btn-ghost text-link -mx-2">
             {running ? 'Running...' : 'Run analysis now'}
           </button>
         )}

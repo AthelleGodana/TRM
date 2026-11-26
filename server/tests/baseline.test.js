@@ -36,6 +36,16 @@ describe('baseline API', () => {
     expect(res.status).toBe(200);
   });
 
+  it('sends security headers and hides the framework', async () => {
+    const res = await request(app).get('/api/health');
+    expect(res.headers['x-powered-by']).toBeUndefined();
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(res.headers['permissions-policy']).toContain('geolocation=(self)');
+  });
+
   it('admin routes require auth and a staff role', async () => {
     expect((await request(app).get('/api/admin/buses')).status).toBe(401);
     const res = await request(app).get('/api/admin/buses').set('Authorization', bearer(student));

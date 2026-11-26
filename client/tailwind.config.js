@@ -17,6 +17,7 @@ export default {
         card: { DEFAULT: token('card'), foreground: token('fg') },
         muted: { DEFAULT: token('muted'), foreground: token('muted-fg') },
         border: token('border'),
+        input: token('input'),
         ring: token('ring'),
         link: token('link'),
         primary: {

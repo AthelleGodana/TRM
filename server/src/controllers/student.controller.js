@@ -51,13 +51,21 @@ export const registerRoute = asyncHandler(async (req, res) => {
   const student = await getStudentByUserId(req.user.id);
   if (!student) return res.status(404).json({ error: 'Student profile not found.' });
 
+  // The standard route is chosen once; after that the transport office
+  // changes it (PUT /admin/students/:id/route).
+  if (student.routeId && Number(routeId) !== student.routeId) {
+    return res.status(400).json({ error: 'Your standard route is set. Ask your transport office to change it.' });
+  }
+
   // Explicitly map string IDs to integers to prevent Prisma input type errors
   const pointIds = [arrivePickupPointId, departPickupPointId]
     .filter(Boolean)
     .map((id) => Number(id));
 
-  if (pointIds.length === 0) {
-    return res.status(400).json({ error: 'Select at least one pickup point.' });
+  // Choosing just the route is fine: stops and times are then picked on
+  // the rides screen.
+  if (!(await prisma.route.findFirst({ where: { id: Number(routeId) || 0, isActive: true } }))) {
+    return res.status(400).json({ error: 'That route is not available.' });
   }
 
   const points = await prisma.pickupPoint.findMany({
@@ -80,8 +88,8 @@ export const registerRoute = asyncHandler(async (req, res) => {
     where: { id: student.id },
     data: {
       routeId: Number(routeId),
-      arrivePickupPointId: arrivePickupPointId ? Number(arrivePickupPointId) : null,
-      departPickupPointId: departPickupPointId ? Number(departPickupPointId) : null,
+      ...(arrivePickupPointId !== undefined ? { arrivePickupPointId: arrivePickupPointId ? Number(arrivePickupPointId) : null } : {}),
+      ...(departPickupPointId !== undefined ? { departPickupPointId: departPickupPointId ? Number(departPickupPointId) : null } : {}),
     },
     include: { arrivePickupPoint: true, departPickupPoint: true, route: true },
   });

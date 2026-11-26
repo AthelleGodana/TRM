@@ -6,6 +6,7 @@ import StatusBadge from '../../../components/common/StatusBadge';
 import { listBuses } from '../../../services/admin.service';
 import { createFuelCard, deleteFuelCard, listFuelCards, updateFuelCard } from '../../../services/fuel.service';
 import { Trash2 } from 'lucide-react';
+import { formatMoney } from '../../../utils/format';
 import { Plus } from 'lucide-react';
 
 const EMPTY = { label: '', provider: '', last4: '', busId: '', monthlyLimit: '' };
@@ -98,14 +99,14 @@ export default function FuelCards() {
             <div className="min-w-0">
               <p className="font-medium text-gray-800 dark:text-gray-100 truncate">{c.label} <span className="font-mono text-gray-400">••{c.last4}</span></p>
               <p className="text-xs text-gray-400">
-                {[c.provider, c.bus?.licensePlate, c.monthlyLimit && `limit KES ${Number(c.monthlyLimit).toLocaleString()}`].filter(Boolean).join(' · ') || '—'}
+                {[c.provider, c.bus?.licensePlate, c.monthlyLimit && `limit ${formatMoney(c.monthlyLimit)}`].filter(Boolean).join(' · ') || '—'}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <StatusBadge variant={STATUS_VARIANT[c.status]}>{c.status.toLowerCase()}</StatusBadge>
               <button type="button" className="btn-ghost btn-sm text-link"
                 onClick={() => act(() => updateFuelCard(c.id, { status: c.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE' }))}>
-                {c.status === 'ACTIVE' ? 'Block' : 'Activate'}
+                {c.status === 'ACTIVE' ? 'Block' : 'Activate'}<span className="sr-only"> {c.label}</span>
               </button>
               <button type="button" className="icon-btn text-danger" onClick={() => act(() => deleteFuelCard(c.id))} aria-label={`Delete ${c.label}`}>
                 <Trash2 size={18} aria-hidden="true" />

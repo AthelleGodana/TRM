@@ -163,7 +163,7 @@ export default function Onboarding() {
                         <div>
                           <label className="field-label" htmlFor="org-code">Organisation code</label>
                           <input id="org-code" className="input-field" autoComplete="off" autoCapitalize="none"
-                            placeholder="e.g. strathmore-university" aria-describedby="org-code-hint org-code-error"
+                            placeholder="e.g. strathmore-university" aria-describedby={errors.organizationCode ? 'org-code-error' : 'org-code-hint'}
                             aria-invalid={Boolean(errors.organizationCode)}
                             value={form.organizationCode} onChange={update('organizationCode')} />
                           {errors.organizationCode
@@ -182,7 +182,7 @@ export default function Onboarding() {
                         <div>
                           <label className="field-label" htmlFor="org-name">Organisation name</label>
                           <input id="org-name" className="input-field" maxLength={120} autoComplete="organization"
-                            aria-invalid={Boolean(errors.name)} aria-describedby="org-name-error"
+                            aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'org-name-error' : undefined}
                             value={form.name} onChange={update('name')} />
                           {errors.name && <p id="org-name-error" role="alert" className="field-error">{errors.name}</p>}
                         </div>

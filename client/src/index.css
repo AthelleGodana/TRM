@@ -13,7 +13,8 @@
     --c-card: 255 255 255;
     --c-muted: 241 245 249;     /* #F1F5F9 */
     --c-muted-fg: 71 85 105;    /* #475569 */
-    --c-border: 226 232 240;    /* #E2E8F0 */
+    --c-border: 226 232 240;    /* #E2E8F0: decorative dividers only */
+    --c-input: 100 116 139;     /* #64748B: control edges, 4.8:1 on white */
     --c-primary: 37 99 235;     /* #2563EB */
     --c-link: 29 78 216;        /* #1D4ED8 */
     --c-ring: 37 99 235;
@@ -30,6 +31,7 @@
     --c-muted: 30 41 59;        /* #1E293B */
     --c-muted-fg: 148 163 184;  /* #94A3B8 */
     --c-border: 51 65 85;       /* #334155 */
+    --c-input: 100 116 139;     /* #64748B: 3.5:1 on the dark card */
     --c-primary: 37 99 235;
     --c-link: 96 165 250;       /* #60A5FA */
     --c-ring: 96 165 250;
@@ -77,11 +79,11 @@
            transition-colors duration-200 select-none disabled:opacity-50;
   }
   .btn-primary { @apply btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800; }
-  .btn-secondary { @apply btn bg-card text-foreground border border-border hover:bg-muted; }
+  .btn-secondary { @apply btn bg-card text-foreground border border-input/60 hover:bg-muted; }
   .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800; }
   .btn-accent { @apply btn bg-accent text-black hover:brightness-95; }
   .btn-ghost { @apply btn text-muted-foreground hover:bg-muted hover:text-foreground; }
-  .btn-sm { @apply min-h-9 px-3 text-xs; }
+  .btn-sm { @apply min-h-10 px-3 text-xs; }
   .icon-btn {
     @apply inline-flex items-center justify-center min-w-11 min-h-11 rounded-lg text-muted-foreground
            hover:bg-muted hover:text-foreground transition-colors duration-200;
@@ -89,14 +91,22 @@
 
   /* 16px text on small screens prevents iOS zoom on focus. */
   .input-field {
-    @apply w-full min-h-11 bg-card text-foreground border border-border rounded-lg px-3.5 py-2.5
+    /* Edge meets 3:1 against the card; focus adds a solid 2px ring. */
+    @apply w-full min-h-11 bg-card text-foreground border border-input rounded-lg px-3.5 py-2.5
            text-base sm:text-sm placeholder:text-gray-400 transition-colors duration-150
-           focus:outline-none focus:border-primary-600 focus:ring-2 focus:ring-ring/30
-           aria-[invalid=true]:border-danger;
+           focus:outline-none focus:border-primary-600 focus:ring-2 focus:ring-ring
+           aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger;
   }
   .field-label { @apply block text-sm font-medium text-foreground mb-1.5; }
   .field-hint { @apply mt-1 text-xs text-muted-foreground; }
   .field-error { @apply mt-1 text-xs font-medium text-danger; }
+
+  /* Long-form text (privacy policy, terms). */
+  .legal-prose h2 { @apply mt-6 mb-2 text-base font-semibold text-foreground; }
+  .legal-prose p, .legal-prose li { @apply text-sm leading-relaxed text-muted-foreground; }
+  .legal-prose p { @apply mt-2; }
+  .legal-prose ul { @apply mt-2 list-disc pl-5 space-y-1; }
+  .legal-prose strong { @apply text-foreground font-semibold; }
 
   .page { @apply mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8; }
   .page-narrow { @apply mx-auto w-full max-w-2xl px-4 py-6 sm:px-6; }
@@ -189,6 +199,10 @@
 @media (display-mode: standalone) {
   body { overscroll-behavior-y: contain; }
 }
+
+/* Toast countdown bar (paused with animation-play-state). */
+@keyframes toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.toast-progress { animation-name: toast-progress; animation-timing-function: linear; animation-fill-mode: forwards; }
 
 /* ── Reduced motion ───────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {

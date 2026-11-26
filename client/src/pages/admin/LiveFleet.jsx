@@ -201,10 +201,11 @@ export default function LiveFleet() {
               <h2 id="alerts-title" className="section-title flex items-center gap-2 mb-2">
                 <BellRing size={18} aria-hidden="true" /> Driver alerts
               </h2>
-              {alerts.length === 0 ? (
+              {alerts.length === 0 && (
                 <p className="text-sm text-muted-foreground">Delays and emergencies reported by drivers appear here while this page is open.</p>
-              ) : (
-                <ul className="flex flex-col gap-2" aria-live="polite">
+              )}
+              {/* Always mounted so new alerts are announced. */}
+              <ul className="flex flex-col gap-2" aria-live="polite" aria-relevant="additions">
                   {alerts.map((a) => (
                     <li key={a.key} className="flex gap-2 text-sm">
                       {a.type === 'EMERGENCY'
@@ -217,7 +218,6 @@ export default function LiveFleet() {
                     </li>
                   ))}
                 </ul>
-              )}
             </section>
           </div>
         </div>

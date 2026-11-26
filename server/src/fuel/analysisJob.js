@@ -39,6 +39,32 @@ async function buildRequest(organizationId, lookbackDays) {
   };
 }
 
+// Every run re-analyses the whole look-back window, so most findings were
+// already stored by an earlier run. Keeps only new ones:
+//  - about a fill-up: new unless the same type was stored for that fill-up
+//    before (whatever its review status, so a dismissed finding stays
+//    dismissed);
+//  - about a vehicle (e.g. efficiency drift): new unless the same type is
+//    still OPEN for that vehicle.
+async function onlyNew(anomalies) {
+  if (!anomalies.length) return anomalies;
+  const recordIds = [...new Set(anomalies.map((a) => a.fuelRecordId).filter((id) => id != null))];
+  const vehicleIds = [...new Set(anomalies.filter((a) => a.fuelRecordId == null).map((a) => a.busId).filter((id) => id != null))];
+  const existing = await prisma.fuelAnomaly.findMany({
+    where: {
+      OR: [
+        ...(recordIds.length ? [{ fuelRecordId: { in: recordIds } }] : []),
+        ...(vehicleIds.length ? [{ fuelRecordId: null, busId: { in: vehicleIds }, status: 'OPEN' }] : []),
+      ],
+    },
+    select: { type: true, fuelRecordId: true, busId: true },
+  });
+  if (!existing.length) return anomalies;
+  const key = (a) => (a.fuelRecordId != null ? `r:${a.fuelRecordId}:${a.type}` : `v:${a.busId}:${a.type}`);
+  const seen = new Set(existing.map(key));
+  return anomalies.filter((a) => !seen.has(key(a)));
+}
+
 // "Run fuel analysis per tenant": records a FuelAnalysisRun, sends this
 // organisation's data to its provider and stores the returned anomalies.
 // With the null provider the run is recorded as SKIPPED.
@@ -56,7 +82,7 @@ export async function runFuelAnalysisForTenant(org, { provider = getFuelAnalytic
         });
       }
 
-      const anomalies = validateAnalysisResponse(request, response);
+      const anomalies = await onlyNew(validateAnalysisResponse(request, response));
       if (anomalies.length) {
         await prisma.fuelAnomaly.createMany({ data: anomalies.map((a) => ({ ...a, runId: run.id })) });
       }

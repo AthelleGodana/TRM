@@ -7,8 +7,9 @@ import StatusBadge from '../../components/common/StatusBadge';
 import MapPicker from '../../components/map/MapPicker';
 import ButtonSelect from '../../components/common/ButtonSelect';
 import { createRoute, listRoutes } from '../../services/admin.service';
-import { Plus } from 'lucide-react';
+import { CalendarClock, Plus } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader';
+import RunsPanel from '../../components/rides/RunsPanel';
 
 const emptyPoint = { name: '', tier: 'TOWN', lat: null, lng: null };
 const TIER_VARIANT = { ADAMS: 'info', LAVINGTON: 'warning', TOWN: 'neutral' };
@@ -23,14 +24,18 @@ export default function ManageRoutes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [openRuns, setOpenRuns] = useState(null);
 
-  const load = () => listRoutes().then((d) => setRoutes(d.routes)).finally(() => setLoading(false));
+  const load = () => listRoutes()
+    .then((d) => setRoutes(d.routes))
+    .catch((err) => setError(err.response?.data?.error || 'Could not load routes.'))
+    .finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
 
-  const updatePoint = (i, field, value) => {
-    const next = [...points];
-    next[i] = { ...next[i], [field]: value };
-    setPoints(next);
+  // Functional update: two changes in one event (lat and lng) must not
+  // overwrite each other.
+  const updatePoint = (i, changes) => {
+    setPoints((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...changes } : p)));
   };
 
   const handleSubmit = async (e) => {
@@ -46,7 +51,7 @@ export default function ManageRoutes() {
     }
   };
 
-  const header = <PageHeader title="Routes & Stops" subtitle="Create routes and pin their pickup points on the map." />;
+  const header = <PageHeader title="Routes & Runs" subtitle="Create routes, pin their stops, and schedule the pickup and drop-off runs passengers book." />;
   if (loading) return <div className="page max-w-3xl">{header}<LoadingSpinner label="Loading routes..." /></div>;
 
   return (
@@ -79,7 +84,7 @@ export default function ManageRoutes() {
               <label htmlFor={`stop-${i}`} className="sr-only">Pickup point {i + 1} name</label>
               <input id={`stop-${i}`} placeholder={`Stop ${i + 1} name`} required value={p.name}
                 onFocus={() => setActivePointIdx(i)}
-                onChange={(e) => updatePoint(i, 'name', e.target.value)} className="input-field" />
+                onChange={(e) => updatePoint(i, { name: e.target.value })} className="input-field" />
 <ButtonSelect
                 ariaLabel="Pickup point tier"
                 size="sm"
@@ -90,18 +95,19 @@ export default function ManageRoutes() {
                 ]}
                 value={p.tier}
                 onFocus={() => setActivePointIdx(i)}
-                onChange={(v) => updatePoint(i, 'tier', v)}
+                onChange={(v) => updatePoint(i, { tier: v })}
               />
             </div>
             <p className="text-xs text-muted-foreground mb-1">
-              {p.lat ? `Pinned: ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}` : 'Click the map below to pin this stop'}
+              {p.lat != null ? `Pinned: ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}` : 'Select this stop, then click the map or type its coordinates below'}
             </p>
           </div>
         ))}
 
         <MapPicker
-          value={points[activePointIdx]?.lat ? { lat: points[activePointIdx].lat, lng: points[activePointIdx].lng } : null}
-          onChange={({ lat, lng }) => { updatePoint(activePointIdx, 'lat', lat); updatePoint(activePointIdx, 'lng', lng); }}
+          value={points[activePointIdx]?.lat != null ? { lat: points[activePointIdx].lat, lng: points[activePointIdx].lng } : null}
+          label={`Stop ${activePointIdx + 1} location`}
+          onChange={({ lat, lng }) => updatePoint(activePointIdx, { lat, lng })}
         />
 
         <button type="button" onClick={() => { setPoints([...points, { ...emptyPoint }]); setActivePointIdx(points.length); }}
@@ -115,10 +121,19 @@ export default function ManageRoutes() {
       <div className={routes.length ? 'glass-card divide-y divide-border' : 'hidden'}>
         {routes.map((r) => (
           <div key={r.id} className="p-4 text-sm">
-            <p className="font-medium text-foreground mb-1.5">{r.name}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {r.pickupPoints.map((p) => <StatusBadge key={p.id} variant={TIER_VARIANT[p.tier]}>{p.name}</StatusBadge>)}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-foreground mb-1.5">{r.name}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {r.pickupPoints.map((p) => <StatusBadge key={p.id} variant={TIER_VARIANT[p.tier]}>{p.name}</StatusBadge>)}
+                </div>
+              </div>
+              <button type="button" className="btn-secondary btn-sm shrink-0" aria-expanded={openRuns === r.id}
+                onClick={() => setOpenRuns(openRuns === r.id ? null : r.id)}>
+                <CalendarClock size={16} aria-hidden="true" /> Runs
+              </button>
             </div>
+            {openRuns === r.id && <RunsPanel route={r} buses={r.buses || []} />}
           </div>
         ))}
       </div>

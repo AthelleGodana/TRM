@@ -74,6 +74,8 @@ export default function LiveMap({
   emergency = null,
   delay = null,
   className = 'h-[420px] sm:h-[520px]',
+  // Optional (stop, isMine) => tooltip text, e.g. "2 · Sarit · 06:41".
+  stopTooltip = null,
 }) {
   const [following, setFollowing] = useState(true);
   const stopFollowing = useCallback(() => setFollowing(false), []);
@@ -112,7 +114,7 @@ export default function LiveMap({
         </button>
       )}
 
-      <MapContainer center={center} zoom={14} className="w-full h-full z-0" aria-label={`Map showing ${label}`}>
+      <MapContainer center={center} zoom={14} className="w-full h-full z-0" role="region" aria-label={`Map showing ${label}`}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -121,12 +123,12 @@ export default function LiveMap({
         {mapped.map((s) => (
           <Marker key={s.id} position={[s.lat, s.lng]} icon={stopIcon(s.id === myStopId)} keyboard={false}>
             <Tooltip direction="top" offset={[0, -8]} permanent={s.id === myStopId}>
-              {s.id === myStopId ? `Your stop: ${s.name}` : s.name}
+              {stopTooltip ? stopTooltip(s, s.id === myStopId) : s.id === myStopId ? `Your stop: ${s.name}` : s.name}
             </Tooltip>
           </Marker>
         ))}
         {display && (
-          <Marker position={[display.lat, display.lng]} icon={busIcon(status)} zIndexOffset={1000}>
+          <Marker position={[display.lat, display.lng]} icon={busIcon(status)} zIndexOffset={1000} title={label} alt={label}>
             <Tooltip direction="top" offset={[0, -22]}>{label}</Tooltip>
           </Marker>
         )}

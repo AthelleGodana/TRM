@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import compression from 'compression';
 
 import { env } from './config/env.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
@@ -23,6 +25,24 @@ import fuelRoutes from './routes/fuel.routes.js';
 // directly with supertest and index.js can attach Socket.io to it.
 export function createApp() {
   const app = express();
+  app.disable('x-powered-by');
+
+  // Security headers. The API only returns JSON and file downloads, so its
+  // CSP allows nothing to load and nothing to frame it. The web app's own
+  // CSP is set by whatever serves the client (client/nginx.conf).
+  app.use(helmet({
+    contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+    crossOriginResourcePolicy: { policy: 'same-site' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    strictTransportSecurity: env.nodeEnv === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
+  }));
+  app.use((req, res, next) => {
+    res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=(), payment=()');
+    next();
+  });
+  // gzip JSON responses. Socket.IO is attached to the HTTP server, not this
+  // app, so it is unaffected.
+  app.use(compression());
 
   app.use(cors({ origin: env.clientUrl, credentials: true }));
   app.use(express.json({ limit: '1mb' }));

@@ -1,5 +1,7 @@
 import prisma from '../config/db.js';
-import { startOfToday } from '../utils/time.js';
+import { env } from '../config/env.js';
+import { DIRECTIONS, effectiveRide, loadRouteRides, localDateString } from './rides.js';
+import { stopTimeMap } from './timetable.js';
 
 // Passengers either have their own account (university students) or are
 // records without one (school pupils, named on the Student row). This
@@ -41,17 +43,36 @@ export async function busForRoute(routeId) {
   };
 }
 
-// What the tracking screen needs about the passenger: their morning and
-// evening stops and the pickup time they booked for today (if any).
+// What the tracking screen needs about the passenger: today's pickup and
+// drop-off (stop, run and the time the run reaches that stop), taking
+// one-day changes into account. morningStopId / eveningStopId / bookedSlot
+// are kept for older clients.
 export async function passengerTrip(student) {
-  const roster = await prisma.tripRoster.findFirst({
-    where: { studentId: student.id, slotId: { not: null }, tripDate: { gte: startOfToday() } },
-    include: { slot: { select: { time: true, label: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
+  const day = localDateString();
+  const rides = { PICKUP: null, DROPOFF: null };
+  if (student.routeId) {
+    const ctx = await loadRouteRides(prisma, student.routeId, day, day);
+    if (ctx) {
+      for (const direction of DIRECTIONS) {
+        const booking = ctx.bookings.find((b) => b.studentId === student.id && b.direction === direction);
+        const ex = ctx.exceptions.find((e) => e.studentId === student.id && e.direction === direction);
+        const ride = effectiveRide(booking, ex, ctx.slotsById, day);
+        if (!ride.slotId) { rides[direction] = { status: ride.source }; continue; }
+        const slot = ctx.slotsById.get(ride.slotId);
+        rides[direction] = {
+          status: ride.source,
+          stopId: ride.pickupPointId,
+          label: slot.label,
+          time: stopTimeMap(ctx.route, slot, { dwellSeconds: env.rides.stopDwellSeconds })[ride.pickupPointId] || slot.time,
+        };
+      }
+    }
+  }
+  const pickup = rides.PICKUP?.stopId ? rides.PICKUP : null;
   return {
-    morningStopId: student.arrivePickupPointId ?? null,
-    eveningStopId: student.departPickupPointId ?? null,
-    bookedSlot: roster?.slot ? { time: roster.slot.time, label: roster.slot.label } : null,
+    today: rides,
+    morningStopId: pickup?.stopId ?? student.arrivePickupPointId ?? null,
+    eveningStopId: rides.DROPOFF?.stopId ?? student.departPickupPointId ?? null,
+    bookedSlot: pickup ? { time: pickup.time, label: pickup.label } : null,
   };
 }

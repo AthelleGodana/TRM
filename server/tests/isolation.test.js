@@ -61,6 +61,16 @@ describe('read endpoints never return another tenant\'s data', () => {
     ['driver', '/api/vehicles/logs'],
     ['driver', '/api/vehicles/safety'],
     ['driver', '/api/gps/history/:busA'],
+    ['admin', '/api/admin/buses/:busA'],
+    ['admin', '/api/admin/maintenance/due'],
+    ['admin', '/api/admin/maintenance/schedules'],
+    ['admin', '/api/admin/maintenance/services'],
+    ['admin', '/api/admin/maintenance/defects'],
+    ['admin', '/api/admin/documents'],
+    ['student', '/api/students/rides'],
+    ['driver', '/api/drivers/me'],
+    ['driver', '/api/drivers/my-vehicle'],
+    ['driver', '/api/drivers/runs/today'],
   ];
 
   it.each(cases)('%s GET %s', async (who, rawPath) => {
@@ -94,6 +104,25 @@ describe('direct access to another tenant\'s records returns 404', () => {
     ['admin', 'post', '/api/admin/buses', { licensePlate: 'KXX 999', driverId: ':driverB' }],
     ['admin', 'put', '/api/admin/buses/:busA', { driverId: ':driverB' }],
     ['student', 'post', '/api/slots/book', { slotId: ':slotB' }],
+    ['admin', 'get', '/api/admin/buses/:busB'],
+    ['admin', 'post', '/api/admin/buses/:busB/assign', { driverId: null }],
+    ['admin', 'post', '/api/admin/buses/:busB/archive'],
+    ['admin', 'put', '/api/admin/buses/:busB/odometer', { odometerKm: 999999 }],
+    ['admin', 'get', '/api/admin/drivers/:driverB'],
+    ['admin', 'put', '/api/admin/drivers/:driverB', { phone: '0700' }],
+    ['admin', 'post', '/api/admin/maintenance/schedules', { busId: ':busB', name: 'x', intervalKm: 10 }],
+    ['admin', 'put', '/api/admin/maintenance/schedules/:scheduleB', { name: 'Hijacked' }],
+    ['admin', 'post', '/api/admin/maintenance/services', { busId: ':busB', description: 'x' }],
+    ['admin', 'delete', '/api/admin/maintenance/services/:serviceB'],
+    ['admin', 'patch', '/api/admin/maintenance/defects/:defectB', { status: 'RESOLVED' }],
+    ['admin', 'post', '/api/admin/documents', { entityType: 'VEHICLE', busId: ':busB', kind: 'OTHER' }],
+    ['admin', 'put', '/api/admin/documents/:documentB', { number: 'Hijacked' }],
+    ['admin', 'delete', '/api/admin/documents/:documentB'],
+    ['admin', 'get', '/api/admin/documents/:documentB/file'],
+    ['admin', 'put', '/api/admin/slots/:slotB', { time: '05:00' }],
+    ['admin', 'delete', '/api/admin/slots/:slotB'],
+    ['admin', 'get', '/api/admin/slots/:slotB/timetable'],
+    ['admin', 'put', '/api/admin/students/:studentB/route', { routeId: null }],
     ['admin', 'patch', '/api/org/members/:memberB', { role: 'DRIVER' }],
     ['admin', 'delete', '/api/org/members/:memberB'],
     ['admin', 'put', '/api/org/members/:memberB/email', { email: 'hijack@test.example' }],
@@ -106,6 +135,9 @@ describe('direct access to another tenant\'s records returns 404', () => {
         .replace(':driverB', B.driver.profile.id).replace(':slotB', B.slot.id)
         .replace(':memberB', B.driver.membership.id).replace(':inviteB', B.invitation.id)
         .replace(':requestB', B.accessRequest.id)
+        .replace(':scheduleB', B.schedule.id).replace(':serviceB', B.service.id)
+        .replace(':defectB', B.defect.id).replace(':documentB', B.document.id)
+        .replace(':studentB', B.student.profile.id)
       : v);
     const body = rawBody && Object.fromEntries(Object.entries(rawBody).map(([k, v]) => [k, fill(v)]));
     const res = await send(method, fill(rawPath), A[who], body);
@@ -170,6 +202,21 @@ describe('enforcement layers', () => {
     it('shows nothing when no organisation is set', async () => {
       expect(await raw.$queryRaw`SELECT id FROM "Bus"`).toEqual([]);
       expect(await raw.$queryRaw`SELECT id FROM "Payment"`).toEqual([]);
+    });
+
+    it.each([
+      'VehicleAssignment', 'MaintenanceSchedule', 'ServiceRecord', 'DefectReport', 'Document',
+      'RideBooking', 'RideException',
+    ])('isolates fleet and ride table %s', async (table) => {
+      expect(await raw.$queryRawUnsafe(`SELECT id FROM "${table}"`)).toEqual([]);
+      const rows = await asOrg(A.org.id, () => raw.$queryRawUnsafe(`SELECT "organizationId" FROM "${table}"`));
+      expect(rows.every((r) => r.organizationId === A.org.id)).toBe(true);
+    });
+
+    it('rejects fleet records pointing at another organisation\'s vehicle', async () => {
+      await expect(db.defectReport.create({
+        data: { organizationId: A.org.id, busId: B.bus.id, description: 'cross' },
+      })).rejects.toMatchObject({ code: 'P2003' });
     });
 
     it('rejects writes into another organisation', async () => {

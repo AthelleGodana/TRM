@@ -26,3 +26,10 @@ client_secret*.json
 
 # Graphify knowledge graph (regenerate with: graphify update .)
 graphify-out/
+
+# Uploaded documents (server/UPLOAD_DIR)
+server/uploads/
+
+# Python bytecode
+__pycache__/
+*.pyc

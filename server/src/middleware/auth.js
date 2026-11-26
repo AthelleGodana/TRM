@@ -1,7 +1,7 @@
 import { systemPrisma as prisma } from '../config/db.js';
 import { runWithContext } from '../context/requestContext.js';
 import { verifyAccessToken } from '../services/token.service.js';
-import { isRoleAllowed, SUPER_ADMIN } from '../config/roles.js';
+import { isRoleAllowed, profileFeatures, SUPER_ADMIN } from '../config/roles.js';
 
 // Resolves an access token into the caller's identity. The membership and
 // organisation are re-checked on every call so that suspensions, removals
@@ -82,6 +82,17 @@ export function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'You do not have permission to access this resource.' });
+    }
+    next();
+  };
+}
+
+// Refuses a route when the organisation's profile does not use the feature
+// (see PROFILE_FEATURES). Use after requireAuth.
+export function requireFeature(feature) {
+  return (req, res, next) => {
+    if (req.org && !profileFeatures(req.org.profile)[feature]) {
+      return res.status(403).json({ error: 'This feature is not available for your organisation.' });
     }
     next();
   };

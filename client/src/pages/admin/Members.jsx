@@ -108,10 +108,10 @@ function People() {
                         <div className="flex gap-2">
                           <button type="button" disabled={!approveRole[r.id]} className="btn-primary flex-1"
                             onClick={() => run(() => approveAccessRequest(r.id, approveRole[r.id]), `${r.user.name} can now sign in.`)}>
-                            Approve
+                            Approve<span className="sr-only"> {r.user.name}</span>
                           </button>
                           <button type="button" className="btn-secondary flex-1"
-                            onClick={() => run(() => rejectAccessRequest(r.id), 'Request rejected.')}>Reject</button>
+                            onClick={() => run(() => rejectAccessRequest(r.id), 'Request rejected.')}>Reject<span className="sr-only"> {r.user.name}</span></button>
                         </div>
                       </div>
                     </li>
@@ -198,7 +198,7 @@ function People() {
                               value={claimEmail[m.id] ?? m.user.email ?? ''}
                               onChange={(e) => setClaimEmail({ ...claimEmail, [m.id]: e.target.value })} />
                             <button type="button" className="btn-secondary"
-                              onClick={() => run(() => setMemberEmail(m.id, claimEmail[m.id]), 'Email saved.')}>Save</button>
+                              onClick={() => run(() => setMemberEmail(m.id, claimEmail[m.id]), 'Email saved.')}>Save<span className="sr-only"> email for {name}</span></button>
                           </div>
                         )}
                         {confirmRemove === m.id ? (

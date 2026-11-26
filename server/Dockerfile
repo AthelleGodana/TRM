@@ -9,6 +9,8 @@ COPY prisma ./prisma
 RUN npx prisma generate
 COPY scripts ./scripts
 COPY src ./src
+# Uploaded documents (mounted as a volume in docker-compose.yml).
+RUN mkdir -p /srv/uploads && chown node:node /srv/uploads
 
 USER node
 EXPOSE 5000

@@ -31,6 +31,27 @@ export const PASSENGER_LABELS = {
   COMPANY: 'Passengers',
 };
 
+// Which passenger-facing parts of the product each profile uses. The client
+// shows menus from these flags (session.organization.features) and the API
+// refuses the matching routes when a flag is off (requireFeature).
+// Fleet features (vehicles, drivers, maintenance, documents) are on for all.
+export const PROFILE_FEATURES = {
+  UNIVERSITY: { passengers: true, studentBilling: true },
+  SCHOOL: { passengers: true, studentBilling: true },
+  COMPANY: { passengers: false, studentBilling: false },
+};
+
+// What vehicles are called in each profile.
+export const VEHICLE_LABELS = {
+  UNIVERSITY: { one: 'Bus', many: 'Buses' },
+  SCHOOL: { one: 'Bus', many: 'Buses' },
+  COMPANY: { one: 'Vehicle', many: 'Vehicles' },
+};
+
+export function profileFeatures(profile) {
+  return PROFILE_FEATURES[profile] || { passengers: true, studentBilling: true };
+}
+
 export const SUPER_ADMIN = 'SUPER_ADMIN';
 
 // Roles that manage the organisation's fleet and see every vehicle.

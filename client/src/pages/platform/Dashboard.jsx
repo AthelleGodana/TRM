@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import ButtonSelect from '../../components/common/ButtonSelect';
 import StatusBadge from '../../components/common/StatusBadge';
+import { plural } from '../../utils/format';
 import { listOrganizations, setOrganizationStatus, updateOrganizationFeatures } from '../../services/org.service';
 
 const FILTERS = [
@@ -47,7 +48,7 @@ export default function PlatformDashboard({ onInstall }) {
       .catch(() => setError('Could not load organisations.'))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, [status]);
+  useEffect(() => { load(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps -- load depends only on status
 
   const act = async (id, fn) => {
     setError('');
@@ -90,7 +91,7 @@ export default function PlatformDashboard({ onInstall }) {
                       <div className="min-w-0">
                         <h2 className="font-semibold text-foreground truncate">{o.name}</h2>
                         <p className="text-xs text-muted-foreground">
-                          {profile.label} · code <span className="font-mono">{o.slug}</span> · {o.memberCount} members · {o.busCount} vehicles
+                          {profile.label} · code <span className="font-mono">{o.slug}</span> · {plural(o.memberCount, 'member')} · {plural(o.busCount, 'vehicle')}
                         </p>
                         {o.admins.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -110,11 +111,11 @@ export default function PlatformDashboard({ onInstall }) {
                   <div className="flex gap-2 mt-2">
                     {o.status === 'PENDING' && (
                       <button type="button" disabled={busy} className="btn-primary flex-1 sm:flex-none"
-                        onClick={() => act(o.id, () => setOrganizationStatus(o.id, 'approve'))}>Approve</button>
+                        onClick={() => act(o.id, () => setOrganizationStatus(o.id, 'approve'))}>Approve<span className="sr-only"> {o.name}</span></button>
                     )}
                     {o.status === 'ACTIVE' && (
                       <button type="button" disabled={busy} className="btn-secondary flex-1 sm:flex-none text-red-700 dark:text-red-300"
-                        onClick={() => act(o.id, () => setOrganizationStatus(o.id, 'suspend'))}>Suspend</button>
+                        onClick={() => act(o.id, () => setOrganizationStatus(o.id, 'suspend'))}>Suspend<span className="sr-only"> {o.name}</span></button>
                     )}
                     {o.status === 'SUSPENDED' && (
                       <button type="button" disabled={busy} className="btn-secondary flex-1 sm:flex-none"

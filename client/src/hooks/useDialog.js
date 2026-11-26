@@ -30,10 +30,15 @@ export function useDialog(open, onClose) {
     document.addEventListener('keydown', onKey);
     const { overflow } = document.body.style;
     document.body.style.overflow = 'hidden';
+    const dialog = ref.current;
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = overflow;
-      previous?.focus?.();
+      // Return focus only if it is still in the dialog (or nowhere). If
+      // something else moved it on purpose, e.g. to <main> after a menu
+      // link navigated, leave it there.
+      const active = document.activeElement;
+      if (!active || active === document.body || dialog?.contains(active)) previous?.focus?.();
     };
   }, [open]);
 

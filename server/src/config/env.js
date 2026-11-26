@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -51,6 +52,22 @@ export const env = {
     url: (process.env.GEOCODING_URL ?? 'https://nominatim.openstreetmap.org').replace(/\/+$/, ''),
     countryCodes: process.env.GEOCODING_COUNTRY_CODES ?? 'ke',
     contactEmail: process.env.GEOCODING_CONTACT_EMAIL || '',
+  },
+
+  // Uploaded vehicle/driver documents. Files are stored here (one folder per
+  // organisation) and only served through the authenticated API.
+  uploadDir: process.env.UPLOAD_DIR || fileURLToPath(new URL('../../uploads/', import.meta.url)),
+  uploadMaxBytes: int(process.env.UPLOAD_MAX_BYTES, 10 * 1024 * 1024),
+
+  rides: {
+    // Seconds a vehicle waits at each stop, added to the road travel time
+    // when working out stop times for a run.
+    stopDwellSeconds: int(process.env.STOP_DWELL_SECONDS, 60),
+    // Passengers can change a day's ride until this many minutes before the
+    // run reaches their stop.
+    bookingCutoffMinutes: int(process.env.BOOKING_CUTOFF_MINUTES, 60),
+    // How many days ahead passengers can see and change.
+    horizonDays: int(process.env.RIDES_HORIZON_DAYS, 14),
   },
 
   fuel: {

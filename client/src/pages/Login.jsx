@@ -8,6 +8,7 @@ import ThemeToggle from '../components/common/ThemeToggle';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
 import Brand from '../components/layout/Brand';
 import { getAuthConfig, getDevAccounts } from '../services/auth.service';
+import LegalLinks from '../components/legal/LegalLinks';
 import { homeForRole } from '../config/roles';
 
 // Errors the server can hand back after a redirect-mode sign-in.
@@ -94,7 +95,7 @@ function DevSignInForm({ onSubmit, busy }) {
           <input
             id="dev-email" type="text" inputMode="email" autoComplete="off" autoCapitalize="none" spellCheck={false}
             list="dev-accounts" placeholder={`uni-admin${DEMO_DOMAIN}`} className="input-field"
-            aria-invalid={Boolean(fieldError)} aria-describedby="dev-email-hint dev-email-error"
+            aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? 'dev-email-error' : 'dev-email-hint'}
             value={email} onChange={(e) => { setEmail(e.target.value); setFieldError(''); }}
           />
           <datalist id="dev-accounts">
@@ -129,10 +130,17 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (session) navigate(homeForRole(session.role), { replace: true });
-  }, [session, navigate]);
+    if (session) navigate(destination(session), { replace: true });
+  }, [session, navigate]); // eslint-disable-line react-hooks/exhaustive-deps -- destination only reads the URL
 
-  const goHome = (s) => navigate(homeForRole(s.role), { replace: true });
+  // Return to the page the user was on, but only inside their own area
+  // (never an outside address).
+  const next = params.get('next');
+  const destination = (s) => {
+    const home = homeForRole(s.role);
+    return next && next.startsWith(`${home}/`) && !next.startsWith('//') ? next : home;
+  };
+  const goHome = (s) => navigate(destination(s), { replace: true });
 
   const handleCredential = (credential) => complete(() => signInWithGoogle(credential));
   const handleDemo = (email) => complete(() => devLogin(email));
@@ -171,6 +179,11 @@ export default function Login() {
           <h1 className="text-xl font-bold tracking-tight text-foreground">Sign in</h1>
           <p className="text-sm text-muted-foreground mt-1 mb-5">Transport and live tracking for universities, schools and companies.</p>
 
+          {params.get('expired') === '1' && !error && (
+            <p role="status" className="text-sm text-foreground bg-muted border border-border rounded-lg px-3.5 py-2.5 mb-4">
+              Your session ended. Sign in again to carry on where you left off.
+            </p>
+          )}
           <ErrorMessage message={error} />
 
           {!config ? (
@@ -199,6 +212,9 @@ export default function Login() {
           )}
         </motion.div>
       </main>
+      <footer className="px-4 pb-6 text-sm text-muted-foreground flex justify-center">
+        <LegalLinks />
+      </footer>
     </div>
   );
 }

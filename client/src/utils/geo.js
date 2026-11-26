@@ -69,17 +69,8 @@ export function formatDistance(meters) {
   return `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`;
 }
 
-// "just now", "20 s ago", "4 min ago", "3 h ago", "2 days ago".
-export function timeAgo(date, now = Date.now()) {
-  const s = Math.max(0, Math.round((now - new Date(date).getTime()) / 1000));
-  if (s < 5) return 'just now';
-  if (s < 60) return `${s} s ago`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 48) return `${h} h ago`;
-  return `${Math.round(h / 24)} days ago`;
-}
+// Re-exported from utils/format.js (kept here for existing imports).
+export { timeAgo } from './format';
 
 // Live status of a bus from its latest position.
 export const MOVING_KMH = 5;

@@ -6,6 +6,7 @@ import SuccessMessage from '../../components/common/SuccessMessage';
 import StatusBadge from '../../components/common/StatusBadge';
 import ButtonSelect from '../../components/common/ButtonSelect';
 import { getPaymentHistory, initiatePayment } from '../../services/payment.service';
+import { formatMoney } from '../../utils/format';
 import PageHeader from '../../components/layout/PageHeader';
 
 const TIERS = [
@@ -82,7 +83,7 @@ export default function Payments() {
         {payments.length === 0 && <p className="p-4 text-sm text-muted-foreground">No payments yet.</p>}
         {payments.map((p) => (
           <div key={p.id} className="p-3.5 text-sm flex justify-between items-center">
-            <span className="font-medium text-foreground tabular-nums">KES {p.amount}</span>
+            <span className="font-medium text-foreground tabular-nums">{formatMoney(p.amount)}</span>
             <StatusBadge variant={STATUS_VARIANT[p.status]}>{p.status}</StatusBadge>
           </div>
         ))}

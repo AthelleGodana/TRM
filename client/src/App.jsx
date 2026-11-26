@@ -1,98 +1,79 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, useRef } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useState, useRef } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import InstallPrompt from './components/common/InstallPrompt';
 import ToastContainer from './components/common/ToastContainer';
+import GlobalErrorToasts from './components/common/GlobalErrorToasts';
+import { PageBoundary } from './components/common/ErrorBoundary';
+import NotFound from './pages/NotFound';
 
-import Landing from './pages/Landing';
-import Login from './pages/Login';
-import AuthCallback from './pages/AuthCallback';
-import Onboarding from './pages/Onboarding';
-import PlatformDashboard from './pages/platform/Dashboard';
-import ParentDashboard from './pages/parent/Dashboard';
-import StudentDashboard from './pages/student/Dashboard';
-import DriverDashboard from './pages/driver/Dashboard';
-import AdminDashboard from './pages/admin/Dashboard';
+// Each area is its own chunk, so signing in as a passenger never downloads
+// the admin pages, charts or fleet tools.
+const Landing = lazy(() => import('./pages/Landing'));
+const Login = lazy(() => import('./pages/Login'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Privacy = lazy(() => import('./pages/legal/Privacy'));
+const Terms = lazy(() => import('./pages/legal/Terms'));
+const PlatformDashboard = lazy(() => import('./pages/platform/Dashboard'));
+const ParentDashboard = lazy(() => import('./pages/parent/Dashboard'));
+const StudentDashboard = lazy(() => import('./pages/student/Dashboard'));
+const DriverDashboard = lazy(() => import('./pages/driver/Dashboard'));
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 
 function PageTransition({ children }) {
   return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
       {children}
     </motion.div>
   );
 }
 
+function AppRoutes({ onInstall }) {
+  const location = useLocation();
+  const area = (roles, Page) => (
+    <ProtectedRoute roles={roles}><Page onInstall={onInstall} /></ProtectedRoute>
+  );
+  return (
+    <PageBoundary resetKey={location.pathname.split('/')[1]} homePath="/">
+      <AnimatePresence mode="wait">
+        <Routes>
+          <Route path="/" element={<PageTransition><Landing /></PageTransition>} />
+          <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/onboarding" element={<PageTransition><Onboarding /></PageTransition>} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+
+          <Route path="/platform/*" element={area(['SUPER_ADMIN'], PlatformDashboard)} />
+          <Route path="/student/*" element={area(['STUDENT'], StudentDashboard)} />
+          <Route path="/driver/*" element={area(['DRIVER'], DriverDashboard)} />
+          <Route path="/admin/*" element={area(['ORG_ADMIN', 'FLEET_MANAGER'], AdminDashboard)} />
+          <Route path="/parent/*" element={area(['PARENT'], ParentDashboard)} />
+
+          <Route path="*" element={<NotFound standalone />} />
+        </Routes>
+      </AnimatePresence>
+    </PageBoundary>
+  );
+}
+
 export default function App() {
   const installTriggerRef = useRef(() => {});
-
-  // Handle the Navbar "install" button by asking the global InstallPrompt to open.
+  // The menu's "Install app" button asks the global InstallPrompt to open.
   const handleInstallRequest = () => installTriggerRef.current?.();
 
-return (
+  return (
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter>
           <InstallPrompt triggerRef={installTriggerRef} />
           <ToastContainer />
-          <AnimatePresence mode="wait">
-            <Routes>
-              <Route path="/" element={<PageTransition><Landing /></PageTransition>} />
-              <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/onboarding" element={<PageTransition><Onboarding /></PageTransition>} />
-
-              <Route
-                path="/platform/*"
-                element={
-                  <ProtectedRoute roles={['SUPER_ADMIN']}>
-                    <PlatformDashboard onInstall={handleInstallRequest} />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/student/*"
-                element={
-                  <ProtectedRoute roles={['STUDENT']}>
-                    <StudentDashboard onInstall={handleInstallRequest} />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/driver/*"
-                element={
-                  <ProtectedRoute roles={['DRIVER']}>
-                    <DriverDashboard onInstall={handleInstallRequest} />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/*"
-                element={
-                  <ProtectedRoute roles={['ORG_ADMIN', 'FLEET_MANAGER']}>
-                    <AdminDashboard onInstall={handleInstallRequest} />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/parent/*"
-                element={
-                  <ProtectedRoute roles={['PARENT']}>
-                    <ParentDashboard onInstall={handleInstallRequest} />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </AnimatePresence>
+          <GlobalErrorToasts />
+          <AppRoutes onInstall={handleInstallRequest} />
         </BrowserRouter>
       </ToastProvider>
     </AuthProvider>

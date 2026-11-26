@@ -7,9 +7,11 @@ import { listBuses } from '../../../services/admin.service';
 import { createFuelRecord, deleteFuelRecord, listFuelCards, listFuelRecords } from '../../../services/fuel.service';
 import { Trash2 } from 'lucide-react';
 import { Plus } from 'lucide-react';
+import { formatMoney } from '../../../utils/format';
+import { formatDate } from '../../../config/fleet';
 
 const EMPTY = { busId: '', litres: '', pricePerLitre: '', totalCost: '', odometer: '', station: '', filledAt: '', fuelCardId: '' };
-const kes = (v) => (v == null ? '—' : `KES ${Number(v).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`);
+const kes = (v) => formatMoney(v, { cents: true });
 
 export default function FuelRecords() {
   const [records, setRecords] = useState([]);
@@ -26,7 +28,7 @@ export default function FuelRecords() {
     .then(([r, b, c]) => { setRecords(r.records); setBuses(b.buses); setCards(c.cards.filter((x) => x.status === 'ACTIVE')); })
     .catch(() => setError('Could not load fuel records.'))
     .finally(() => setLoading(false));
-  useEffect(() => { load(); }, [busFilter]);
+  useEffect(() => { load(); }, [busFilter]); // eslint-disable-line react-hooks/exhaustive-deps -- load depends only on busFilter
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -130,11 +132,11 @@ export default function FuelRecords() {
                 {r.source === 'FUEL_CARD' && <StatusBadge variant="info">Card ••{r.fuelCard?.last4}</StatusBadge>}
                 {confirmDelete === r.id ? (
                   <>
-                    <button type="button" className="btn-ghost btn-sm text-danger" onClick={() => remove(r.id)}>Delete</button>
+                    <button type="button" className="btn-ghost btn-sm text-danger" onClick={() => remove(r.id)}>Delete<span className="sr-only"> this fuel record</span></button>
                     <button type="button" className="btn-ghost btn-sm" onClick={() => setConfirmDelete(null)}>Keep</button>
                   </>
                 ) : (
-                  <button type="button" className="icon-btn text-danger" onClick={() => setConfirmDelete(r.id)} aria-label="Delete record">
+                  <button type="button" className="icon-btn text-danger" onClick={() => setConfirmDelete(r.id)} aria-label={`Delete fuel record: ${r.bus?.licensePlate || 'vehicle'}, ${formatDate(r.filledAt)}`}>
                     <Trash2 size={18} aria-hidden="true" />
                   </button>
                 )}

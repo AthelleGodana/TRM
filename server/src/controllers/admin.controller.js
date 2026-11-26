@@ -11,73 +11,45 @@ export const listRoutesAdmin = asyncHandler(async (req, res) => {
   res.json({ routes });
 });
 
-// ── Buses ────────────────────────────────────────────────────────────────
-export const createBus = asyncHandler(async (req, res) => {
-  const { licensePlate, capacity, driverId, routeId } = req.body;
-  if (!licensePlate) return res.status(400).json({ error: 'License plate is required.' });
-
-  const bus = await prisma.bus.create({
-    data: {
-      licensePlate,
-      capacity: capacity ? Number(capacity) : undefined,
-      driverId: driverId ? Number(driverId) : null,
-      routeId: routeId ? Number(routeId) : null,
-    },
-  });
-  res.status(201).json({ bus });
-});
-
-// Used by the Fleet Management assignment modal to reassign a bus's
-// driver and/or route without recreating the bus record.
-export const updateBusAssignment = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { driverId, routeId, capacity } = req.body;
-
-  const bus = await prisma.bus.update({
-    where: { id: Number(id) },
-    data: {
-      driverId: driverId === '' || driverId == null ? null : Number(driverId),
-      routeId: routeId === '' || routeId == null ? null : Number(routeId),
-      ...(capacity ? { capacity: Number(capacity) } : {}),
-    },
-    include: {
-      driver: { include: { user: { select: { firstName: true, lastName: true } } } },
-      route: true,
-    },
-  });
-
-  res.json({ bus });
-});
-
-export const listBuses = asyncHandler(async (req, res) => {
-  const buses = await prisma.bus.findMany({
-    include: {
-      driver: { include: { user: { select: { firstName: true, lastName: true } } } },
-      route: true,
-    },
-    orderBy: { id: 'desc' },
-  });
-  res.json({ buses });
-});
-
-// ── Drivers & students ──────────────────────────────────────────────────
-export const listDrivers = asyncHandler(async (req, res) => {
-  const drivers = await prisma.driver.findMany({
-    include: { user: { select: { firstName: true, lastName: true, email: true } } },
-  });
-  res.json({ drivers });
-});
-
+// ── Passengers ───────────────────────────────────────────────────────────
 export const listStudents = asyncHandler(async (req, res) => {
   const students = await prisma.student.findMany({
     include: {
       user: { select: { firstName: true, lastName: true, email: true } },
       route: true,
       guardians: { include: { user: { select: { id: true, name: true, firstName: true, lastName: true, email: true } } } },
+      rideBookings: {
+        include: { slot: { select: { label: true, time: true } }, pickupPoint: { select: { name: true } } },
+      },
     },
     orderBy: { id: 'asc' },
   });
   res.json({ students: students.map(presentPassenger) });
+});
+
+// PUT /admin/students/:id/route { routeId | null } — sets the passenger's
+// standard route. Their ride bookings belong to the old route, so changing
+// it clears them (and their stops); the passenger then picks again.
+export const assignStudentRoute = asyncHandler(async (req, res) => {
+  const id = Number(req.params.id) || 0;
+  const routeId = req.body.routeId ? Number(req.body.routeId) : null;
+  const student = await prisma.student.findUnique({ where: { id } });
+  if (!student) return res.status(404).json({ error: 'Passenger not found.' });
+  if (routeId && !(await prisma.route.findUnique({ where: { id: routeId } }))) {
+    return res.status(404).json({ error: 'Route not found.' });
+  }
+  if (routeId === student.routeId) return res.json({ student });
+
+  const updated = await tenantTransaction(async (tx) => {
+    await tx.rideBooking.deleteMany({ where: { studentId: id } });
+    await tx.rideException.deleteMany({ where: { studentId: id } });
+    return tx.student.update({
+      where: { id },
+      data: { routeId, arrivePickupPointId: null, departPickupPointId: null },
+      include: { route: true },
+    });
+  });
+  res.json({ student: updated });
 });
 
 export const removeStudents = asyncHandler(async (req, res) => {

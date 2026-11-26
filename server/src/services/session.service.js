@@ -2,7 +2,9 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { systemPrisma as db } from '../config/db.js';
 import { env } from '../config/env.js';
-import { PASSENGER_LABELS, roleLabel, rolesForProfile, SUPER_ADMIN } from '../config/roles.js';
+import {
+  PASSENGER_LABELS, VEHICLE_LABELS, profileFeatures, roleLabel, rolesForProfile, SUPER_ADMIN,
+} from '../config/roles.js';
 import { signAccessToken } from './token.service.js';
 import { activeMemberships, touchMembership } from './membership.service.js';
 
@@ -72,8 +74,11 @@ export async function describeSession(user, membership) {
       profile: org.profile,
       branding: org.branding,
       passengerLabel: PASSENGER_LABELS[org.profile],
+      vehicleLabel: VEHICLE_LABELS[org.profile]?.one || 'Vehicle',
+      vehiclesLabel: VEHICLE_LABELS[org.profile]?.many || 'Vehicles',
       roles: rolesForProfile(org.profile),
       features: {
+        ...profileFeatures(org.profile),
         fuelHub: org.fuelHubEnabled,
         aiFuelAnalytics: org.aiFuelAnalyticsEnabled,
       },

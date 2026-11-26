@@ -34,13 +34,25 @@ def test_analyze_requires_the_service_secret():
     assert client.post("/v1/analyze", json=REQUEST, headers={"X-Service-Secret": "wrong"}).status_code == 401
 
 
-def test_analyze_returns_an_empty_list_for_now():
+def test_a_clean_request_has_no_anomalies():
     res = client.post("/v1/analyze", json=REQUEST, headers={"X-Service-Secret": SECRET})
     assert res.status_code == 200
     body = res.json()
     assert body["organizationId"] == 7
     assert body["anomalies"] == []
     assert body["contractVersion"] == "1.0"
+    assert body["modelVersion"] == "rules-1+stats-1"
+
+
+def test_a_planted_problem_is_reported_with_an_explanation():
+    over_tank = {**REQUEST["fuelRecords"][0], "id": 346, "litres": 240, "totalCost": 43200,
+                 "odometer": 12900, "filledAt": "2026-11-03T07:30:00Z"}
+    body = client.post("/v1/analyze", json={**REQUEST, "fuelRecords": REQUEST["fuelRecords"] + [over_tank]},
+                       headers={"X-Service-Secret": SECRET}).json()
+    hit = next(a for a in body["anomalies"] if a["type"] == "OVER_TANK_CAPACITY")
+    assert hit["fuelRecordId"] == 346 and hit["vehicleId"] == 12
+    assert hit["severity"] == "HIGH"
+    assert "tank holds 200 L" in hit["explanation"]["summary"]
 
 
 def test_rejects_invalid_payloads():

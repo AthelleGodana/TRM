@@ -88,6 +88,14 @@ model Organization {
   fuelAnalysisRuns FuelAnalysisRun[]
   fuelAnomalies    FuelAnomaly[]
   payments         Payment[]
+
+  vehicleAssignments   VehicleAssignment[]
+  maintenanceSchedules MaintenanceSchedule[]
+  serviceRecords       ServiceRecord[]
+  defectReports        DefectReport[]
+  documents            Document[]
+  rideBookings         RideBooking[]
+  rideExceptions       RideException[]
 }
 
 model Membership {
@@ -237,14 +245,23 @@ model Student {
   routeId Int?
   route   Route? @relation(fields: [routeId], references: [id])
 
-  payments  Payment[]
-  guardians PassengerGuardian[]
-  roster    TripRoster[]
+  payments       Payment[]
+  guardians      PassengerGuardian[]
+  roster         TripRoster[]
+  rideBookings   RideBooking[]
+  rideExceptions RideException[]
 
   createdAt DateTime @default(now())
 
   @@unique([organizationId, userId])
   @@index([organizationId, routeId])
+}
+
+enum DriverStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  INACTIVE
 }
 
 model Driver {
@@ -254,9 +271,23 @@ model Driver {
   userId         Int
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Employment and licence details (fleet management).
+  phone            String?
+  employeeNo       String?
+  licenseNumber    String?
+  licenseClass     String?
+  licenseExpiry    DateTime?
+  hireDate         DateTime?
+  status           DriverStatus @default(ACTIVE)
+  emergencyContact String?
+  notes            String?
+
   fuelCards   FuelCard[]
   fuelRecords FuelRecord[]
   buses       Bus[]
+  assignments VehicleAssignment[]
+  defects     DefectReport[]
+  documents   Document[]
 
   createdAt DateTime @default(now())
 
@@ -264,13 +295,13 @@ model Driver {
 }
 
 model Route {
-  id              Int          @id @default(autoincrement())
-  organizationId  Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name            String
-  schoolArrival   String?
-  schoolDeparture String?
-  isActive        Boolean      @default(true)
+  id                Int          @id @default(autoincrement())
+  organizationId    Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name              String
+  schoolArrival     String?
+  schoolDeparture   String?
+  isActive          Boolean      @default(true)
   // Road route through the stops, from the routing service (OSRM) when the
   // route is saved: geometry is [[lat, lng], ...]; legs hold the distance
   // (m) and duration (s) between consecutive pinned stops.
@@ -302,8 +333,10 @@ model PickupPoint {
   lng            Float?
   order          Int          @default(0)
 
-  studentsArriving Student[] @relation("ArrivePickup")
-  studentsLeaving  Student[] @relation("DepartPickup")
+  studentsArriving Student[]       @relation("ArrivePickup")
+  studentsLeaving  Student[]       @relation("DepartPickup")
+  rideBookings     RideBooking[]
+  rideExceptions   RideException[]
 
   createdAt DateTime @default(now())
 
@@ -314,19 +347,60 @@ enum BusStatus {
   OPERATIONAL
   IN_SERVICE
   OUT_OF_FUEL
+  IN_MAINTENANCE
+  OUT_OF_SERVICE
 }
 
+enum VehicleType {
+  BUS
+  MINIBUS
+  VAN
+  CAR
+  PICKUP
+  TRUCK
+  MOTORCYCLE
+  OTHER
+}
+
+enum Ownership {
+  OWNED
+  LEASED
+  RENTED
+}
+
+// Every vehicle in the fleet. Named Bus for historical reasons; the UI
+// calls it a vehicle for COMPANY organisations.
 model Bus {
   id             Int          @id @default(autoincrement())
   organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   licensePlate   String
-  capacity       Int          @default(30)
+  capacity       Int?         @default(30)
   driverId       Int?
   driver         Driver?      @relation(fields: [driverId], references: [id])
   routeId        Int?
   route          Route?       @relation(fields: [routeId], references: [id])
   status         BusStatus    @default(OPERATIONAL)
+
+  // Vehicle registry (fleet management).
+  vehicleType VehicleType @default(BUS)
+  make        String?
+  model       String?
+  year        Int?
+  vin         String?
+  color       String?
+  fuelType    FuelType?
+  odometerKm  Int?
+  acquiredAt  DateTime?
+  ownership   Ownership?
+  notes       String?
+  archivedAt  DateTime?
+
+  assignments          VehicleAssignment[]
+  maintenanceSchedules MaintenanceSchedule[]
+  serviceRecords       ServiceRecord[]
+  defects              DefectReport[]
+  documents            Document[]
 
   fuelProfile   VehicleFuelProfile?
   fuelCards     FuelCard[]
@@ -341,25 +415,43 @@ model Bus {
   createdAt DateTime @default(now())
 
   @@unique([organizationId, licensePlate])
+  @@unique([organizationId, vin])
   @@index([organizationId, routeId])
   @@index([organizationId, driverId])
 }
 
-model PickupSlot {
-  id             Int          @id @default(autoincrement())
-  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  routeId        Int
-  route          Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  busId          Int?
-  bus            Bus?         @relation(fields: [busId], references: [id])
-  time           String // e.g. "06:30"
-  label          String // e.g. "Morning 1"
-  capacity       Int          @default(30)
-  bookedCount    Int          @default(0)
-  isActive       Boolean      @default(true)
+enum RideDirection {
+  PICKUP // home -> campus / site
+  DROPOFF // campus / site -> home
+}
 
-  bookings TripRoster[]
+// A scheduled run of a route (shown as "Run" in the UI). `time` is when the
+// run starts: departure from the first stop for PICKUP runs, departure from
+// the campus for DROPOFF runs. Stop times are derived from the route's leg
+// durations (services/timetable.js), adjustable through stopTimeOverrides.
+model PickupSlot {
+  id                Int           @id @default(autoincrement())
+  organizationId    Int           @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  routeId           Int
+  route             Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  busId             Int?
+  bus               Bus?          @relation(fields: [busId], references: [id])
+  direction         RideDirection @default(PICKUP)
+  time              String // e.g. "06:30"
+  label             String // e.g. "Morning 1"
+  capacity          Int           @default(30)
+  // ISO weekdays the run operates on (1 = Monday ... 7 = Sunday).
+  daysOfWeek        Int[]         @default([1, 2, 3, 4, 5])
+  // { "<pickupPointId>": "HH:MM" } hand-set stop times.
+  stopTimeOverrides Json?
+  // Legacy counter; seats are now counted from RideBooking/RideException.
+  bookedCount       Int           @default(0)
+  isActive          Boolean       @default(true)
+
+  bookings       TripRoster[]
+  rideBookings   RideBooking[]
+  rideExceptions RideException[]
 
   createdAt DateTime @default(now())
 
@@ -636,4 +728,215 @@ model FuelAnomaly {
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, busId])
+}
+
+// ── Fleet management ─────────────────────────────────────────────────────
+// Tenant-scoped (RLS + same-tenant triggers). User references (assignedBy,
+// createdById, ...) are plain ids: users are global, not tenant rows.
+
+// History of which driver had which vehicle. Bus.driverId remains the
+// current assignment; the open row here (endedAt = null) mirrors it.
+model VehicleAssignment {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId          Int
+  bus            Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
+  driverId       Int
+  driver         Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  startedAt      DateTime     @default(now())
+  endedAt        DateTime?
+  assignedById   Int?
+  notes          String?
+
+  @@index([organizationId, busId, startedAt])
+  @@index([organizationId, driverId, startedAt])
+}
+
+// A recurring service, due every intervalKm and/or intervalDays after it
+// was last done. The next due point is computed, never stored.
+model MaintenanceSchedule {
+  id               Int          @id @default(autoincrement())
+  organizationId   Int          @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId            Int
+  bus              Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
+  name             String
+  intervalKm       Int?
+  intervalDays     Int?
+  lastDoneAt       DateTime?
+  lastDoneOdometer Int?
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  serviceRecords ServiceRecord[]
+
+  @@index([organizationId, busId])
+}
+
+enum ServiceType {
+  SERVICE
+  REPAIR
+  TYRES
+  INSPECTION
+  OTHER
+}
+
+model ServiceRecord {
+  id             Int                  @id @default(autoincrement())
+  organizationId Int                  @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId          Int
+  bus            Bus                  @relation(fields: [busId], references: [id], onDelete: Cascade)
+  scheduleId     Int?
+  schedule       MaintenanceSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  type           ServiceType          @default(SERVICE)
+  description    String
+  servicedAt     DateTime
+  odometerKm     Int?
+  vendor         String?
+  partsCost      Decimal?             @db.Decimal(12, 2)
+  labourCost     Decimal?             @db.Decimal(12, 2)
+  totalCost      Decimal?             @db.Decimal(12, 2)
+  createdById    Int?
+  createdAt      DateTime             @default(now())
+
+  defects DefectReport[]
+
+  @@index([organizationId, busId, servicedAt])
+  @@index([organizationId, servicedAt])
+}
+
+enum DefectSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DefectStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+model DefectReport {
+  id              Int            @id @default(autoincrement())
+  organizationId  Int            @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  busId           Int
+  bus             Bus            @relation(fields: [busId], references: [id], onDelete: Cascade)
+  driverId        Int?
+  driver          Driver?        @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  description     String
+  severity        DefectSeverity @default(MEDIUM)
+  status          DefectStatus   @default(OPEN)
+  reportedById    Int?
+  resolvedById    Int?
+  resolvedAt      DateTime?
+  resolutionNote  String?
+  serviceRecordId Int?
+  serviceRecord   ServiceRecord? @relation(fields: [serviceRecordId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, busId])
+}
+
+enum DocumentEntity {
+  VEHICLE
+  DRIVER
+}
+
+enum DocumentKind {
+  INSURANCE
+  REGISTRATION
+  INSPECTION_CERT
+  ROAD_LICENSE
+  DRIVER_LICENSE
+  PSV_BADGE
+  MEDICAL
+  OTHER
+}
+
+// Compliance documents for vehicles and drivers. The file itself (if any)
+// lives on disk under UPLOAD_DIR and is only served through an
+// authenticated, tenant-checked endpoint.
+model Document {
+  id             Int            @id @default(autoincrement())
+  organizationId Int            @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entityType     DocumentEntity
+  busId          Int?
+  bus            Bus?           @relation(fields: [busId], references: [id], onDelete: Cascade)
+  driverId       Int?
+  driver         Driver?        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  kind           DocumentKind
+  title          String?
+  number         String?
+  issuedAt       DateTime?
+  expiresAt      DateTime?
+  notes          String?
+  storageKey     String?
+  fileName       String?
+  mimeType       String?
+  fileSize       Int?
+  createdById    Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId, expiresAt])
+  @@index([organizationId, busId])
+  @@index([organizationId, driverId])
+}
+
+// ── Passenger rides ──────────────────────────────────────────────────────
+
+// A passenger's standing choice for one direction: which stop and which
+// run. Repeats on every day the run operates until changed.
+model RideBooking {
+  id             Int           @id @default(autoincrement())
+  organizationId Int           @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  studentId      Int
+  student        Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  direction      RideDirection
+  slotId         Int
+  slot           PickupSlot    @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  pickupPointId  Int
+  pickupPoint    PickupPoint   @relation(fields: [pickupPointId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([studentId, direction])
+  @@index([organizationId, slotId])
+}
+
+enum RideExceptionType {
+  SKIP
+  CHANGE
+}
+
+// A one-day change to a standing booking: skip the ride, or take a
+// different stop/run on that date only.
+model RideException {
+  id             Int               @id @default(autoincrement())
+  organizationId Int               @default(dbgenerated("(NULLIF(current_setting('app.current_org', true), ''))::integer"))
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  studentId      Int
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date           DateTime          @db.Date
+  direction      RideDirection
+  type           RideExceptionType
+  slotId         Int?
+  slot           PickupSlot?       @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  pickupPointId  Int?
+  pickupPoint    PickupPoint?      @relation(fields: [pickupPointId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+
+  @@unique([studentId, date, direction])
+  @@index([organizationId, date])
+  @@index([organizationId, slotId, date])
 }

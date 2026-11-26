@@ -6,6 +6,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { homeForRole } from '../config/roles';
 import Brand from '../components/layout/Brand';
+import LegalLinks from '../components/legal/LegalLinks';
 import ThemeToggle from '../components/common/ThemeToggle';
 
 const AUDIENCES = [
@@ -217,6 +218,7 @@ export default function Landing() {
       <footer className="border-t border-border">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 flex flex-col sm:flex-row gap-4 sm:items-center justify-between text-sm text-muted-foreground">
           <Brand />
+          <LegalLinks />
           <p>© {new Date().getFullYear()} Transtrack Kenya · Built by Athelle Godana</p>
         </div>
       </footer>

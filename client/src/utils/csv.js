@@ -42,7 +42,8 @@ export function toCsv(rows) {
 
 // Offers `rows` to the user as a .csv download.
 export function downloadCsv(filename, rows) {
-  const blob = new Blob([`﻿${toCsv(rows)}\r\n`], { type: 'text/csv;charset=utf-8' });
+  // The byte-order mark makes Excel read the file as UTF-8.
+  const blob = new Blob([`${String.fromCharCode(0xfeff)}${toCsv(rows)}\r\n`], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

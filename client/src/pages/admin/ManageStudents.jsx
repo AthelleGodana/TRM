@@ -9,6 +9,7 @@ import {
   listStudents, removeStudents, listRoutes, createPupil, listParents, linkGuardian, unlinkGuardian,
 } from '../../services/admin.service';
 import { Plus, Search } from 'lucide-react';
+import { setStudentRoute } from '../../services/rides.service';
 import PageHeader from '../../components/layout/PageHeader';
 
 const TIER_VARIANT = { ADAMS: 'info', LAVINGTON: 'warning', TOWN: 'neutral' };
@@ -175,7 +176,30 @@ export default function ManageStudents() {
             <div><span className="text-muted-foreground">Name</span><p className="font-medium text-foreground">{active.user.firstName} {active.user.lastName}</p></div>
             <div><span className="text-muted-foreground">Email</span><p>{active.user.email}</p></div>
             <div><span className="text-muted-foreground">Payment tier</span><p><StatusBadge variant={TIER_VARIANT[active.paymentTier]}>{active.paymentTier}</StatusBadge></p></div>
-            <div><span className="text-muted-foreground">Route</span><p>{active.route?.name || 'Not registered'}</p></div>
+            <div>
+              <span className="text-muted-foreground">Standard route</span>
+              <div className="mt-1">
+                <ButtonSelect ariaLabel="Standard route" size="sm" allowClear clearLabel="None"
+                  options={routes.map((r) => ({ value: String(r.id), label: r.name }))}
+                  value={String(active.routeId || '')}
+                  onChange={(routeId) => {
+                    if (active.rideBookings?.length && !window.confirm('Changing the route removes this passenger\'s pickup and drop-off bookings. Continue?')) return;
+                    attempt(() => setStudentRoute(active.id, routeId));
+                  }} />
+              </div>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Rides</span>
+              {active.rideBookings?.length ? (
+                <ul className="mt-1 flex flex-col gap-1">
+                  {active.rideBookings.map((b) => (
+                    <li key={b.id}>
+                      <span className="font-medium">{b.direction === 'PICKUP' ? 'Pickup' : 'Drop-off'}:</span> {b.pickupPoint?.name} · {b.slot?.label}
+                    </li>
+                  ))}
+                </ul>
+              ) : <p>No pickup or drop-off chosen yet.</p>}
+            </div>
             <div><span className="text-muted-foreground">Phone</span><p>{active.phone || '—'}</p></div>
             <div><span className="text-muted-foreground">Email</span><p>{active.email || '—'}</p></div>
             <div><span className="text-muted-foreground">Address</span><p>{active.address || '—'}</p></div>

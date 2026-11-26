@@ -4,10 +4,30 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import StatusBadge from '../../components/common/StatusBadge';
 import { getBillingOverview, listAllPayments } from '../../services/admin.service';
+import { formatMoney } from '../../config/fleet';
 import PageHeader from '../../components/layout/PageHeader';
 
-const TIER_COLORS = { TOWN: '#94a3b8', LAVINGTON: '#f59e0b', ADAMS: '#8b5cf6' };
+// 3:1 or better against both the light and the dark card.
+const TIER_COLORS = { TOWN: '#64748b', LAVINGTON: '#d97706', ADAMS: '#7c3aed' };
+const AXIS = { fontSize: 12, fill: 'rgb(var(--c-muted-fg))' };
+const TOOLTIP = {
+  contentStyle: { borderRadius: 12, border: '1px solid rgb(var(--c-border))', fontSize: 12, background: 'rgb(var(--c-card))', color: 'rgb(var(--c-fg))' },
+  labelStyle: { color: 'rgb(var(--c-fg))' },
+  itemStyle: { color: 'rgb(var(--c-fg))' },
+};
 const STATUS_VARIANT = { PAID: 'success', PENDING: 'warning', FAILED: 'danger' };
+
+// The charts' data as a table for screen readers (the charts are hidden
+// from assistive technology).
+function ChartTable({ caption, rows, label }) {
+  return (
+    <table className="sr-only">
+      <caption>{caption}</caption>
+      <thead><tr><th scope="col">{label === 'month' ? 'Month' : 'Tier'}</th><th scope="col">Revenue (KES)</th></tr></thead>
+      <tbody>{rows.map((r) => <tr key={r[label]}><th scope="row">{r[label]}</th><td>{formatMoney(r.revenue)}</td></tr>)}</tbody>
+    </table>
+  );
+}
 
 // tone: a small coloured marker so status is not conveyed by colour alone
 // (the label always says it).
@@ -46,7 +66,7 @@ export default function Billing() {
       {data && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <StatCard label="Total revenue" value={`KES ${data.totalRevenue.toLocaleString()}`} />
+            <StatCard label="Total revenue" value={formatMoney(data.totalRevenue)} />
             <StatCard label="Paid" value={data.counts.paid} tone="bg-emerald-500" />
             <StatCard label="Pending" value={data.counts.pending} tone="bg-amber-500" />
             <StatCard label="Failed" value={data.counts.failed} tone="bg-red-500" />
@@ -54,7 +74,8 @@ export default function Billing() {
 
           <div className="glass-card p-5 mb-6">
             <h2 className="section-title mb-4">Revenue by month</h2>
-            <ResponsiveContainer width="100%" height={220}>
+            <ChartTable caption="Revenue by month" rows={data.revenueByMonth} label="month" />
+            <ResponsiveContainer width="100%" height={220} aria-hidden="true">
               <AreaChart data={data.revenueByMonth}>
                 <defs>
                   <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
@@ -63,9 +84,9 @@ export default function Billing() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="currentColor" opacity={0.5} />
-                <YAxis tick={{ fontSize: 11 }} stroke="currentColor" opacity={0.5} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }} />
+                <XAxis dataKey="month" tick={AXIS} stroke="rgb(var(--c-input))" />
+                <YAxis tick={AXIS} stroke="rgb(var(--c-input))" />
+                <Tooltip {...TOOLTIP} />
                 <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#rev)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -73,12 +94,13 @@ export default function Billing() {
 
           <div className="glass-card p-5 mb-6">
             <h2 className="section-title mb-4">Revenue by tier</h2>
-            <ResponsiveContainer width="100%" height={200}>
+            <ChartTable caption="Revenue by tier" rows={data.revenueByTier} label="tier" />
+            <ResponsiveContainer width="100%" height={200} aria-hidden="true">
               <BarChart data={data.revenueByTier}>
                 <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                <XAxis dataKey="tier" tick={{ fontSize: 11 }} stroke="currentColor" opacity={0.5} />
-                <YAxis tick={{ fontSize: 11 }} stroke="currentColor" opacity={0.5} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }} />
+                <XAxis dataKey="tier" tick={AXIS} stroke="rgb(var(--c-input))" />
+                <YAxis tick={AXIS} stroke="rgb(var(--c-input))" />
+                <Tooltip {...TOOLTIP} />
                 <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
                   {data.revenueByTier.map((entry) => <Cell key={entry.tier} fill={TIER_COLORS[entry.tier]} />)}
                 </Bar>
@@ -90,7 +112,7 @@ export default function Billing() {
           <div className="glass-card divide-y divide-border">
             {payments.map((p) => (
               <div key={p.id} className="p-3.5 text-sm flex justify-between items-center gap-3">
-                <span className="text-foreground">{p.student.user.firstName} {p.student.user.lastName} · <span className="tabular-nums">KES {p.amount}</span></span>
+                <span className="text-foreground">{p.student.user.firstName} {p.student.user.lastName} · <span className="tabular-nums">{formatMoney(p.amount)}</span></span>
                 <StatusBadge variant={STATUS_VARIANT[p.status]}>{p.status}</StatusBadge>
               </div>
             ))}
